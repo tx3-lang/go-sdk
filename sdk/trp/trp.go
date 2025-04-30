@@ -1,5 +1,5 @@
 // Package trp provides a Transaction Resolution Protocol (TRP) client for Go
-package tx3trp
+package trp
 
 import (
 	"bytes"
@@ -70,35 +70,35 @@ type jsonRPCError struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// TRPError is a custom error type for TRP operations
-type TRPError struct {
+// Error is a custom error type for TRP operations
+type Error struct {
 	Message string
 	Data    interface{}
 }
 
 // Error implements the error interface for TRPError
-func (e *TRPError) Error() string {
+func (e *Error) Error() string {
 	if e.Data != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.Data)
 	}
 	return e.Message
 }
 
-// TRPClient is a client for interacting with a TRP server
-type TRPClient struct {
+// Client is a client for interacting with a TRP server
+type Client struct {
 	options    ClientOptions
 	httpClient *http.Client
 }
 
-// NewTRPClient creates a new TRPClient with the given options
-func NewTRPClient(options ClientOptions) *TRPClient {
+// NewClient creates a new TRPClient with the given options
+func NewClient(options ClientOptions) *Client {
 	// Set default timeout if not provided
 	timeout := options.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
 
-	return &TRPClient{
+	return &Client{
 		options: options,
 		httpClient: &http.Client{
 			Timeout: timeout,
@@ -107,7 +107,7 @@ func NewTRPClient(options ClientOptions) *TRPClient {
 }
 
 // Resolve sends a transaction to be resolved by the TRP server
-func (c *TRPClient) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
+func (c *Client) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
 	// Create JSON-RPC request
 	params := jsonRPCParams{
 		Tir:  protoTx.Tir,
@@ -173,7 +173,7 @@ func (c *TRPClient) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
 
 	// Check for JSON-RPC error
 	if rpcResponse.Error != nil {
-		return nil, &TRPError{
+		return nil, &Error{
 			Message: rpcResponse.Error.Message,
 			Data:    rpcResponse.Error.Data,
 		}

@@ -1,4 +1,4 @@
-module tx3/trp
+module tx3sdk
 
 go 1.24.2
 
