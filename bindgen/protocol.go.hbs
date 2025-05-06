@@ -21,15 +21,15 @@ var DefaultEnvArgs = map[string]string{
 }
 
 {{#each transactions}}
-// {{params_name}} defines the parameters for the {{name}} transaction
-type {{params_name}} struct {
+// {{pascalCase params_name}} defines the parameters for the {{pascalCase name}} transaction
+type {{pascalCase params_name}} struct {
 {{#each parameters}}
-	{{name}} {{type_name}} `json:"{{name}}"`
+	{{pascalCase name}} {{type_name}} `json:"{{pascalCase name}}"`
 {{/each}}
 }
 
-// {{constant_name}} contains the TIR bytecode for the {{name}} transaction
-var {{constant_name}} = trp.TirInfo{
+// {{constantCase constant_name}} contains the TIR bytecode for the {{pascalCase name}} transaction
+var {{constantCase constant_name}} = trp.TirInfo{
 	Bytecode: "{{ir_bytes}}",
 	Encoding: "hex",
 	Version:  "v1alpha1",
@@ -65,10 +65,10 @@ func NewClientWithDefaults() *Client {
 }
 
 {{#each transactions}}
-// {{function_name}} resolves the {{name}} transaction with the given parameters
-func (c *Client) {{function_name}}(args {{params_name}}) (*trp.TxEnvelope, error) {
+// {{pascalCase function_name}} resolves the {{pascalCase name}} transaction with the given parameters
+func (c *Client) {{pascalCase function_name}}(args {{pascalCase params_name}}) (*trp.TxEnvelope, error) {
 	return c.client.Resolve(trp.ProtoTxRequest{
-		Tir:  {{constant_name}},
+		Tir:  {{constantCase constant_name}},
 		Args: args,
 	})
 }
