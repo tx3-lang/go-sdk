@@ -32,7 +32,7 @@ type {{pascalCase params_name}} struct {
 var {{constantCase constant_name}} = trp.TirInfo{
 	Bytecode: "{{ir_bytes}}",
 	Encoding: "hex",
-	Version:  "v1alpha1",
+	Version:  "{{ir_version}}",
 }
 
 {{/each}}
