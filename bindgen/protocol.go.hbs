@@ -3,7 +3,10 @@
 package protocol
 
 import (
-	"tx3sdk/trp"
+	"encoding/hex"
+	"encoding/json"
+
+  "github.com/tx3-lang/go-sdk/trp"
 )
 
 const DefaultTRPEndpoint = "{{trpEndpoint}}"
@@ -20,11 +23,18 @@ var DefaultEnvArgs = map[string]string{
 {{/each}}
 }
 
+
+type Bytes []byte
+func (h Bytes) MarshalJSON() ([]byte, error) {
+	hexStr := "0x" + hex.EncodeToString(h)
+	return json.Marshal(hexStr)
+}
+
 {{#each transactions}}
 // {{pascalCase params_name}} defines the parameters for the {{pascalCase name}} transaction
 type {{pascalCase params_name}} struct {
 {{#each parameters}}
-	{{pascalCase name}} {{type_name}} `json:"{{pascalCase name}}"`
+	{{pascalCase name}} {{type_name}} `json:"{{snakeCase name}}"`
 {{/each}}
 }
 
