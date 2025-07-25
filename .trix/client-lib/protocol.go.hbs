@@ -34,7 +34,7 @@ func (h Bytes) MarshalJSON() ([]byte, error) {
 // {{pascalCase params_name}} defines the parameters for the {{pascalCase name}} transaction
 type {{pascalCase params_name}} struct {
 {{#each parameters}}
-	{{pascalCase name}} {{type_name}} `json:"{{snakeCase name}}"`
+	{{pascalCase name}} {{typeFor type_name "go"}} `json:"{{snakeCase name}}"` // {{type_name}}
 {{/each}}
 }
 
