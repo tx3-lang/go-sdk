@@ -21,9 +21,8 @@ type TirInfo struct {
 
 // TxEnvelope represents a resolved transaction envelope
 type TxEnvelope struct {
-	Tx       string `json:"tx"`
-	Bytes    string `json:"bytes,omitempty"`
-	Encoding string `json:"encoding"` // "base64" | "hex" | string
+	Tx   string `json:"tx"`
+	Hash string `json:"hash"`
 }
 
 // ClientOptions configures the TRP client
