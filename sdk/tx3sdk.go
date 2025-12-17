@@ -2,7 +2,7 @@
 package tx3sdk
 
 import (
-	"tx3sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // NewTRPClient creates a new TRP client with the given options
