@@ -41,10 +41,10 @@ type ProtoTxRequest struct {
 
 // jsonRPCRequest represents a JSON-RPC request
 type jsonRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Method  string        `json:"method"`
-	Params  jsonRPCParams `json:"params"`
-	ID      string        `json:"id"`
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
+	ID      string      `json:"id"`
 }
 
 // jsonRPCParams represents the parameters for a TRP resolution request
@@ -52,6 +52,33 @@ type jsonRPCParams struct {
 	Tir  TirInfo     `json:"tir"`
 	Args interface{} `json:"args"`
 	Env  interface{} `json:"env,omitempty"`
+}
+
+// BytesEnvelope represents a byte array with encoding information
+type BytesEnvelope struct {
+	Content  string `json:"content"`
+	Encoding string `json:"encoding"` // "base64" | "hex"
+}
+
+// VKeyWitness represents a verification key witness
+type VKeyWitness struct {
+	Type      string        `json:"type"`
+	Key       BytesEnvelope `json:"key"`
+	Signature BytesEnvelope `json:"signature"`
+}
+
+// SubmitWitness represents a witness for transaction submission
+type SubmitWitness VKeyWitness
+
+// SubmitParams represents the parameters for submitting a transaction
+type SubmitParams struct {
+	Tx        BytesEnvelope   `json:"tx"`
+	Witnesses []SubmitWitness `json:"witnesses"`
+}
+
+// SubmitResponse represents the response from a transaction submission
+type SubmitResponse struct {
+	Hash string `json:"hash"`
 }
 
 // jsonRPCResponse represents a JSON-RPC response
@@ -105,23 +132,12 @@ func NewClient(options ClientOptions) *Client {
 	}
 }
 
-// Resolve sends a transaction to be resolved by the TRP server
-func (c *Client) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
-	// Create JSON-RPC request
-	params := jsonRPCParams{
-		Tir:  protoTx.Tir,
-		Args: protoTx.Args,
-	}
-
-	// Add environment arguments if provided
-	if len(c.options.EnvArgs) > 0 {
-		params.Env = c.options.EnvArgs
-	}
-
+// call performs a JSON-RPC request
+func (c *Client) call(method string, params interface{}) (json.RawMessage, error) {
 	requestID := uuid.New().String()
 	rpcRequest := jsonRPCRequest{
 		JSONRPC: "2.0",
-		Method:  "trp.resolve",
+		Method:  method,
 		Params:  params,
 		ID:      requestID,
 	}
@@ -178,9 +194,54 @@ func (c *Client) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
 		}
 	}
 
+	return rpcResponse.Result, nil
+}
+
+// Resolve sends a transaction to be resolved by the TRP server
+func (c *Client) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
+	// Create params
+	params := jsonRPCParams{
+		Tir:  protoTx.Tir,
+		Args: protoTx.Args,
+	}
+
+	// Add environment arguments if provided
+	if len(c.options.EnvArgs) > 0 {
+		params.Env = c.options.EnvArgs
+	}
+
+	resultRaw, err := c.call("trp.resolve", params)
+	if err != nil {
+		return nil, err
+	}
+
 	// Parse result
 	var result TxEnvelope
-	if err := json.Unmarshal(rpcResponse.Result, &result); err != nil {
+	if err := json.Unmarshal(resultRaw, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+	}
+
+	return &result, nil
+}
+
+// Submit sends a signed transaction to the network
+func (c *Client) Submit(tx TxEnvelope, witnesses []SubmitWitness) (*SubmitResponse, error) {
+	params := SubmitParams{
+		Tx: BytesEnvelope{
+			Content:  tx.Tx,
+			Encoding: "hex",
+		},
+		Witnesses: witnesses,
+	}
+
+	resultRaw, err := c.call("trp.submit", params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse result
+	var result SubmitResponse
+	if err := json.Unmarshal(resultRaw, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
 	}
 

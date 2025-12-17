@@ -84,6 +84,10 @@ func (c *Client) {{pascalCase function_name}}(args {{pascalCase params_name}}) (
 }
 {{/each}}
 
+// Submit sends a signed transaction to the network
+func (c *Client) Submit(tx trp.TxEnvelope, witnesses []trp.SubmitWitness) (*trp.SubmitResponse, error) {
+	return c.client.Submit(tx, witnesses)
+}
 
 // Instance of the singleton client
 var DefaultClient *Client
