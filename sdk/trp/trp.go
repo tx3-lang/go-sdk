@@ -15,7 +15,7 @@ import (
 // TirInfo contains the Transaction Intermediate Representation information
 type TirInfo struct {
 	Version  string `json:"version"`
-	Bytecode string `json:"bytecode"`
+	Content  string `json:"content"`
 	Encoding string `json:"encoding"` // "base64" | "hex" | string
 }
 
@@ -70,10 +70,45 @@ type VKeyWitness struct {
 // SubmitWitness represents a witness for transaction submission
 type SubmitWitness VKeyWitness
 
+// WitnessInput represents either a SubmitWitness object or a hex string
+type WitnessInput struct {
+	Object *SubmitWitness
+	Hex    string
+}
+
+// MarshalJSON implements custom marshaling for WitnessInput
+func (w WitnessInput) MarshalJSON() ([]byte, error) {
+	if w.Object != nil {
+		return json.Marshal(w.Object)
+	}
+	return json.Marshal(w.Hex)
+}
+
+// UnmarshalJSON implements custom unmarshaling for WitnessInput
+func (w *WitnessInput) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var h string
+	if err := json.Unmarshal(data, &h); err == nil {
+		w.Hex = h
+		w.Object = nil
+		return nil
+	}
+
+	// Try to unmarshal as SubmitWitness
+	var obj SubmitWitness
+	if err := json.Unmarshal(data, &obj); err == nil {
+		w.Object = &obj
+		w.Hex = ""
+		return nil
+	}
+
+	return fmt.Errorf("data is neither string nor SubmitWitness")
+}
+
 // SubmitParams represents the parameters for submitting a transaction
 type SubmitParams struct {
-	Tx        BytesEnvelope   `json:"tx"`
-	Witnesses []SubmitWitness `json:"witnesses"`
+	Tx        BytesEnvelope  `json:"tx"`
+	Witnesses []WitnessInput `json:"witnesses"`
 }
 
 // SubmitResponse represents the response from a transaction submission
@@ -225,7 +260,7 @@ func (c *Client) Resolve(protoTx ProtoTxRequest) (*TxEnvelope, error) {
 }
 
 // Submit sends a signed transaction to the network
-func (c *Client) Submit(tx TxEnvelope, witnesses []SubmitWitness) (*SubmitResponse, error) {
+func (c *Client) Submit(tx TxEnvelope, witnesses []WitnessInput) (*SubmitResponse, error) {
 	params := SubmitParams{
 		Tx: BytesEnvelope{
 			Content:  tx.Tx,
