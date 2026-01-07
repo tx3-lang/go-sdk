@@ -38,9 +38,9 @@ type {{pascalCase params_name}} struct {
 {{/each}}
 }
 
-// {{constantCase constant_name}} contains the TIR bytecode for the {{pascalCase name}} transaction
+// {{constantCase constant_name}} contains the TIR content for the {{pascalCase name}} transaction
 var {{constantCase constant_name}} = trp.TirInfo{
-	Bytecode: "{{ir_bytes}}",
+	Content: "{{ir_bytes}}",
 	Encoding: "hex",
 	Version:  "{{ir_version}}",
 }
@@ -85,7 +85,7 @@ func (c *Client) {{pascalCase function_name}}(args {{pascalCase params_name}}) (
 {{/each}}
 
 // Submit sends a signed transaction to the network
-func (c *Client) Submit(tx trp.TxEnvelope, witnesses []trp.SubmitWitness) (*trp.SubmitResponse, error) {
+func (c *Client) Submit(tx trp.TxEnvelope, witnesses []trp.WitnessInput) (*trp.SubmitResponse, error) {
 	return c.client.Submit(tx, witnesses)
 }
 
