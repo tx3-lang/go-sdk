@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/tx3-lang/go-sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/core"
 )
 
 func TestIntArgSmall(t *testing.T) {

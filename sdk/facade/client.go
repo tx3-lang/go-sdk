@@ -4,8 +4,8 @@
 package facade
 
 import (
-	"github.com/tx3-lang/go-sdk/tii"
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/tii"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // Tx3Client is the main entry point for the Tx3 SDK.

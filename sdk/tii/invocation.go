@@ -3,7 +3,7 @@ package tii
 import (
 	"strings"
 
-	"github.com/tx3-lang/go-sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/core"
 )
 
 // Invocation represents a partially-built transaction: the transaction name,

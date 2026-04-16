@@ -1,7 +1,7 @@
 package tii
 
 import (
-	"github.com/tx3-lang/go-sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/core"
 )
 
 // TiiFile represents the top-level structure of a .tii file.

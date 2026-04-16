@@ -19,9 +19,9 @@ import (
 	"log"
 	"os"
 
-	tx3 "github.com/tx3-lang/go-sdk"
-	"github.com/tx3-lang/go-sdk/signer"
-	"github.com/tx3-lang/go-sdk/trp"
+	tx3 "github.com/tx3-lang/go-sdk/sdk"
+	"github.com/tx3-lang/go-sdk/sdk/signer"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// 1. Load protocol from .tii file
-	protocol, err := tx3.ProtocolFromFile("../../tests/fixtures/transfer.tii")
+	protocol, err := tx3.ProtocolFromFile("../../sdk/tests/fixtures/transfer.tii")
 	if err != nil {
 		log.Fatalf("Failed to load protocol: %v", err)
 	}

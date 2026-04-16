@@ -1,14 +1,16 @@
 # tx3-sdk (Go)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/tx3-lang/go-sdk.svg)](https://pkg.go.dev/github.com/tx3-lang/go-sdk)
+[![Go Reference](https://pkg.go.dev/badge/github.com/tx3-lang/go-sdk/sdk.svg)](https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 The official Go SDK for [Tx3](https://tx3.land) — a DSL and protocol suite for defining and executing UTxO-based blockchain transactions declaratively. Load a compiled `.tii` protocol, bind parties and signers, and drive the full transaction lifecycle (resolve, sign, submit, confirm) via the Transaction Resolve Protocol (TRP).
 
+This repository is organized as a monorepo. The publishable Go SDK module lives in `sdk/`.
+
 ## Installation
 
 ```bash
-go get github.com/tx3-lang/go-sdk
+go get github.com/tx3-lang/go-sdk/sdk
 ```
 
 ## Quick start
@@ -21,9 +23,9 @@ import (
     "fmt"
     "log"
 
-    tx3 "github.com/tx3-lang/go-sdk"
-    "github.com/tx3-lang/go-sdk/signer"
-    "github.com/tx3-lang/go-sdk/trp"
+    tx3 "github.com/tx3-lang/go-sdk/sdk"
+    "github.com/tx3-lang/go-sdk/sdk/signer"
+    "github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 func main() {
@@ -93,7 +95,7 @@ func main() {
 ### Low-level TRP client
 
 ```go
-import "github.com/tx3-lang/go-sdk/trp"
+import "github.com/tx3-lang/go-sdk/sdk/trp"
 
 client := trp.NewClient(trp.ClientOptions{
     Endpoint: "http://localhost:3000",
@@ -124,7 +126,7 @@ client.WithParty("sender", tx3.SignerParty(&MySigner{}))
 All errors are discriminable via `errors.As()` — no string matching needed:
 
 ```go
-import "github.com/tx3-lang/go-sdk/facade"
+import "github.com/tx3-lang/go-sdk/sdk/facade"
 
 _, err := client.Tx("transfer").Resolve(ctx)
 var unknownParty *facade.UnknownPartyError

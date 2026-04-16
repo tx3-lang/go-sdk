@@ -1,6 +1,6 @@
 package facade
 
-import "github.com/tx3-lang/go-sdk/signer"
+import "github.com/tx3-lang/go-sdk/sdk/signer"
 
 // Party represents a named participant in a transaction.
 // A party is either address-only (provides an address for resolution)

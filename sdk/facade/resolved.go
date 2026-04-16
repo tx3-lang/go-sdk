@@ -3,8 +3,8 @@ package facade
 import (
 	"encoding/hex"
 
-	"github.com/tx3-lang/go-sdk/core"
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // ResolvedTx represents a transaction that has been resolved by TRP

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/tx3-lang/go-sdk/tii"
+	"github.com/tx3-lang/go-sdk/sdk/tii"
 )
 
 func TestProtocolFromFile(t *testing.T) {

@@ -1,6 +1,6 @@
 package signer
 
-import "github.com/tx3-lang/go-sdk/core"
+import "github.com/tx3-lang/go-sdk/sdk/core"
 
 // WitnessType identifies the kind of witness.
 const WitnessTypeVKey = "vkey"

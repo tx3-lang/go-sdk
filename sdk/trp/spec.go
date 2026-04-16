@@ -2,7 +2,7 @@
 package trp
 
 import (
-	"github.com/tx3-lang/go-sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/core"
 )
 
 // ResolveParams is the request body for the trp.resolve JSON-RPC method.

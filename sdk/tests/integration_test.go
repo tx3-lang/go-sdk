@@ -17,10 +17,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/tx3-lang/go-sdk/facade"
-	"github.com/tx3-lang/go-sdk/signer"
-	"github.com/tx3-lang/go-sdk/tii"
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/facade"
+	"github.com/tx3-lang/go-sdk/sdk/signer"
+	"github.com/tx3-lang/go-sdk/sdk/tii"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 func skipIfNoTRP(t *testing.T) {

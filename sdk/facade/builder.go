@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tx3-lang/go-sdk/core"
-	"github.com/tx3-lang/go-sdk/signer"
-	"github.com/tx3-lang/go-sdk/tii"
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/signer"
+	"github.com/tx3-lang/go-sdk/sdk/tii"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // TxBuilder collects transaction arguments and resolves the transaction via TRP.

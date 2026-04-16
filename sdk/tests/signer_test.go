@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/tx3-lang/go-sdk/signer"
+	"github.com/tx3-lang/go-sdk/sdk/signer"
 )
 
 func TestEd25519SignerFromKnownKey(t *testing.T) {

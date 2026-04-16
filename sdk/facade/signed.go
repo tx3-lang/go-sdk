@@ -3,7 +3,7 @@ package facade
 import (
 	"context"
 
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // SignedTx represents a signed transaction ready for submission to the chain.

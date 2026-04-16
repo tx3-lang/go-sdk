@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/tx3-lang/go-sdk/trp"
+	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // SubmittedTx represents a transaction that has been submitted to the chain.
