@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.2
+          cache: true
+          cache-dependency-path: sdk/go.sum
+
+      - name: Run unit tests
+        working-directory: ./sdk
+        run: go test ./... -count=1
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRP_ENDPOINT: ${{ secrets.TRP_ENDPOINT }}
+      TEST_PARTY_A_ADDRESS: ${{ secrets.TEST_PARTY_A_ADDRESS }}
+      TEST_PARTY_A_MNEMONIC: ${{ secrets.TEST_PARTY_A_MNEMONIC }}
+      TEST_PARTY_B_ADDRESS: ${{ secrets.TEST_PARTY_B_ADDRESS }}
+      TEST_PARTY_B_MNEMONIC: ${{ secrets.TEST_PARTY_B_MNEMONIC }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.2
+          cache: true
+          cache-dependency-path: sdk/go.sum
+
+      - name: Run integration tests
+        working-directory: ./sdk
+        run: go test ./... -run '^TestIntegration' -count=1
