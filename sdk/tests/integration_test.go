@@ -1,9 +1,10 @@
 // Integration tests for the Tx3 Go SDK.
 // These tests require a running TRP server and are skipped if
-// the TRP_ENDPOINT environment variable is not set.
+// the TRP_ENDPOINT_PREPROD environment variable is not set.
 //
 // Required environment variables:
-//   - TRP_ENDPOINT: Full URL of the TRP server
+//   - TRP_ENDPOINT_PREPROD: Full URL of the preprod TRP server
+//   - TRP_API_KEY_PREPROD: API key for the preprod TRP server
 //   - TEST_PARTY_A_ADDRESS: Bech32 address for the first party
 //   - TEST_PARTY_A_MNEMONIC: BIP39 mnemonic for the first party
 //
@@ -25,9 +26,17 @@ import (
 
 func skipIfNoTRP(t *testing.T) {
 	t.Helper()
-	if os.Getenv("TRP_ENDPOINT") == "" {
-		t.Skip("TRP_ENDPOINT not set, skipping integration test")
+	if os.Getenv("TRP_ENDPOINT_PREPROD") == "" {
+		t.Skip("TRP_ENDPOINT_PREPROD not set, skipping integration test")
 	}
+}
+
+func trpHeadersFromEnv() map[string]string {
+	apiKey := os.Getenv("TRP_API_KEY_PREPROD")
+	if apiKey == "" {
+		return nil
+	}
+	return map[string]string{"dmtr-api-key": apiKey}
 }
 
 func requireEnv(t *testing.T, name string) string {
@@ -41,7 +50,7 @@ func requireEnv(t *testing.T, name string) string {
 
 func TestIntegrationHappyPath(t *testing.T) {
 	skipIfNoTRP(t)
-	endpoint := requireEnv(t, "TRP_ENDPOINT")
+	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
 	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
@@ -50,7 +59,7 @@ func TestIntegrationHappyPath(t *testing.T) {
 		t.Fatalf("FromFile failed: %v", err)
 	}
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint})
+	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint, Headers: trpHeadersFromEnv()})
 
 	cardanoSigner, err := signer.CardanoSignerFromMnemonic(partyAAddr, partyAMnemonic)
 	if err != nil {
@@ -119,7 +128,7 @@ func TestIntegrationBadEndpoint(t *testing.T) {
 
 func TestIntegrationPollTimeout(t *testing.T) {
 	skipIfNoTRP(t)
-	endpoint := requireEnv(t, "TRP_ENDPOINT")
+	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
 	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
@@ -128,7 +137,7 @@ func TestIntegrationPollTimeout(t *testing.T) {
 		t.Fatalf("FromFile failed: %v", err)
 	}
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint})
+	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint, Headers: trpHeadersFromEnv()})
 	cardanoSigner, err := signer.CardanoSignerFromMnemonic(partyAAddr, partyAMnemonic)
 	if err != nil {
 		t.Fatalf("CardanoSignerFromMnemonic failed: %v", err)

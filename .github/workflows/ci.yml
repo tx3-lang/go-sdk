@@ -35,7 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TRP_ENDPOINT: ${{ secrets.TRP_ENDPOINT }}
+      TRP_ENDPOINT_PREPROD: ${{ secrets.TRP_ENDPOINT_PREPROD }}
+      TRP_API_KEY_PREPROD: ${{ secrets.TRP_API_KEY_PREPROD }}
       TEST_PARTY_A_ADDRESS: ${{ secrets.TEST_PARTY_A_ADDRESS }}
       TEST_PARTY_A_MNEMONIC: ${{ secrets.TEST_PARTY_A_MNEMONIC }}
       TEST_PARTY_B_ADDRESS: ${{ secrets.TEST_PARTY_B_ADDRESS }}
@@ -50,6 +51,15 @@ jobs:
           go-version: 1.24.2
           cache: true
           cache-dependency-path: sdk/go.sum
+
+      - name: Validate integration secrets
+        run: |
+          for name in TRP_ENDPOINT_PREPROD TRP_API_KEY_PREPROD TEST_PARTY_A_ADDRESS TEST_PARTY_A_MNEMONIC TEST_PARTY_B_ADDRESS TEST_PARTY_B_MNEMONIC; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required integration env var: $name"
+              exit 1
+            fi
+          done
 
       - name: Run integration tests
         working-directory: ./sdk
