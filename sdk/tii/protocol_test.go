@@ -1,4 +1,4 @@
-package tests
+package tii_test
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestProtocolFromFile(t *testing.T) {
-	p, err := tii.FromFile("fixtures/transfer.tii")
+	p, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -17,7 +17,7 @@ func TestProtocolFromFile(t *testing.T) {
 }
 
 func TestProtocolFromString(t *testing.T) {
-	data, err := os.ReadFile("fixtures/transfer.tii")
+	data, err := os.ReadFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("ReadFile failed: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestProtocolFromString(t *testing.T) {
 }
 
 func TestProtocolFromBytes(t *testing.T) {
-	data, err := os.ReadFile("fixtures/transfer.tii")
+	data, err := os.ReadFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("ReadFile failed: %v", err)
 	}
@@ -43,12 +43,12 @@ func TestProtocolFromBytes(t *testing.T) {
 }
 
 func TestFromFileAndFromStringProduceEquivalentProtocol(t *testing.T) {
-	pFile, err := tii.FromFile("fixtures/transfer.tii")
+	pFile, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
 
-	data, _ := os.ReadFile("fixtures/transfer.tii")
+	data, _ := os.ReadFile("../testdata/transfer.tii")
 	pStr, err := tii.FromString(string(data))
 	if err != nil {
 		t.Fatalf("FromString failed: %v", err)
@@ -88,7 +88,7 @@ func TestRejectMissingFile(t *testing.T) {
 }
 
 func TestUnknownTransactionName(t *testing.T) {
-	p, err := tii.FromFile("fixtures/transfer.tii")
+	p, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestUnknownTransactionName(t *testing.T) {
 }
 
 func TestUnknownProfile(t *testing.T) {
-	p, err := tii.FromFile("fixtures/transfer.tii")
+	p, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestUnknownProfile(t *testing.T) {
 }
 
 func TestInvokeWithProfile(t *testing.T) {
-	p, err := tii.FromFile("fixtures/transfer.tii")
+	p, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}

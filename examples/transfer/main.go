@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// 1. Load protocol from .tii file
-	protocol, err := tx3.ProtocolFromFile("../../sdk/tests/fixtures/transfer.tii")
+	protocol, err := tx3.ProtocolFromFile("../../sdk/testdata/transfer.tii")
 	if err != nil {
 		log.Fatalf("Failed to load protocol: %v", err)
 	}

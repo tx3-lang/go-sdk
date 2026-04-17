@@ -1,4 +1,4 @@
-package tests
+package facade_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 func newTestProtocol(t *testing.T) *tii.Protocol {
 	t.Helper()
-	p, err := tii.FromFile("fixtures/transfer.tii")
+	p, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -387,9 +387,18 @@ func TestWaitForConfirmedDropped(t *testing.T) {
 	}
 }
 
-// mockSigner is defined in signer_test.go but we need one here too
-// since tests package compiles together — use a different approach
+type mockSigner struct {
+	address string
+	pubKey  string
+	sig     string
+}
+
+func (m *mockSigner) Address() string { return m.address }
+
+func (m *mockSigner) Sign(_ string) (*signer.TxWitness, error) {
+	return signer.NewVKeyWitness(m.pubKey, m.sig), nil
+}
+
 func init() {
-	// Ensure signer.Signer interface is satisfied
 	var _ signer.Signer = &mockSigner{}
 }

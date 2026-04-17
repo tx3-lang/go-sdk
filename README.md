@@ -140,6 +140,17 @@ if errors.As(err, &unknownParty) {
 - **TRP protocol version:** v1beta0
 - **TII schema version:** v1beta0
 
+## Testing
+
+- Unit tests are co-located with the packages they exercise (`*_test.go` next to source files).
+- Integration tests live under `sdk/integration/` and are gated by the `integration` build tag.
+
+```bash
+# from go-sdk/sdk
+go test ./... -count=1
+go test -tags=integration ./integration -count=1
+```
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

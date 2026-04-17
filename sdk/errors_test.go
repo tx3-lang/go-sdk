@@ -1,4 +1,4 @@
-package tests
+package tx3sdk_test
 
 import (
 	"errors"

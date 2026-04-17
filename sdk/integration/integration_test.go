@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 // Integration tests for the Tx3 Go SDK.
 // These tests require a running TRP server and are skipped if
 // the TRP_ENDPOINT_PREPROD environment variable is not set.
@@ -11,7 +14,7 @@
 // Optional:
 //   - TEST_PARTY_B_ADDRESS: Second party address
 //   - TEST_PARTY_B_MNEMONIC: Second party mnemonic
-package tests
+package integration_test
 
 import (
 	"context"
@@ -54,7 +57,7 @@ func TestIntegrationHappyPath(t *testing.T) {
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
 	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
-	protocol, err := tii.FromFile("fixtures/transfer.tii")
+	protocol, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -107,7 +110,7 @@ func TestIntegrationHappyPath(t *testing.T) {
 func TestIntegrationBadEndpoint(t *testing.T) {
 	skipIfNoTRP(t)
 
-	protocol, err := tii.FromFile("fixtures/transfer.tii")
+	protocol, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
@@ -132,7 +135,7 @@ func TestIntegrationPollTimeout(t *testing.T) {
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
 	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
-	protocol, err := tii.FromFile("fixtures/transfer.tii")
+	protocol, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}

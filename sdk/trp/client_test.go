@@ -1,4 +1,4 @@
-package tests
+package trp_test
 
 import (
 	"context"

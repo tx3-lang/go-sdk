@@ -1,4 +1,4 @@
-package tests
+package signer_test
 
 import (
 	"crypto/ed25519"
