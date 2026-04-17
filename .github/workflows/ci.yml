@@ -30,8 +30,8 @@ jobs:
         working-directory: ./sdk
         run: go test ./... -count=1
 
-  integration:
-    name: integration
+  e2e:
+    name: e2e
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -52,15 +52,15 @@ jobs:
           cache: true
           cache-dependency-path: sdk/go.sum
 
-      - name: Validate integration secrets
+      - name: Validate e2e secrets
         run: |
           for name in TRP_ENDPOINT_PREPROD TRP_API_KEY_PREPROD TEST_PARTY_A_ADDRESS TEST_PARTY_A_MNEMONIC TEST_PARTY_B_ADDRESS TEST_PARTY_B_MNEMONIC; do
             if [ -z "${!name}" ]; then
-              echo "Missing required integration env var: $name"
+              echo "Missing required e2e env var: $name"
               exit 1
             fi
           done
 
-      - name: Run integration tests
+      - name: Run e2e tests
         working-directory: ./sdk
-        run: go test -tags=integration ./integration -count=1
+        run: go test -tags=e2e ./e2e -count=1

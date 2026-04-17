@@ -1,7 +1,7 @@
-//go:build integration
-// +build integration
+//go:build e2e
+// +build e2e
 
-// Integration tests for the Tx3 Go SDK.
+// End-to-end tests for the Tx3 Go SDK.
 // These tests require a running TRP server and are skipped if
 // the TRP_ENDPOINT_PREPROD environment variable is not set.
 //
@@ -14,7 +14,7 @@
 // Optional:
 //   - TEST_PARTY_B_ADDRESS: Second party address
 //   - TEST_PARTY_B_MNEMONIC: Second party mnemonic
-package integration_test
+package e2e_test
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 func skipIfNoTRP(t *testing.T) {
 	t.Helper()
 	if os.Getenv("TRP_ENDPOINT_PREPROD") == "" {
-		t.Skip("TRP_ENDPOINT_PREPROD not set, skipping integration test")
+		t.Skip("TRP_ENDPOINT_PREPROD not set, skipping e2e test")
 	}
 }
 
@@ -46,12 +46,12 @@ func requireEnv(t *testing.T, name string) string {
 	t.Helper()
 	v := os.Getenv(name)
 	if v == "" {
-		t.Skipf("%s not set, skipping integration test", name)
+		t.Skipf("%s not set, skipping e2e test", name)
 	}
 	return v
 }
 
-func TestIntegrationHappyPath(t *testing.T) {
+func TestE2EHappyPath(t *testing.T) {
 	skipIfNoTRP(t)
 	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
@@ -107,7 +107,7 @@ func TestIntegrationHappyPath(t *testing.T) {
 	t.Logf("Transaction %s confirmed at stage %s", submitted.Hash, status.Stage)
 }
 
-func TestIntegrationBadEndpoint(t *testing.T) {
+func TestE2EBadEndpoint(t *testing.T) {
 	skipIfNoTRP(t)
 
 	protocol, err := tii.FromFile("../testdata/transfer.tii")
@@ -129,7 +129,7 @@ func TestIntegrationBadEndpoint(t *testing.T) {
 	}
 }
 
-func TestIntegrationPollTimeout(t *testing.T) {
+func TestE2EPollTimeout(t *testing.T) {
 	skipIfNoTRP(t)
 	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")

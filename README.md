@@ -143,12 +143,12 @@ if errors.As(err, &unknownParty) {
 ## Testing
 
 - Unit tests are co-located with the packages they exercise (`*_test.go` next to source files).
-- Integration tests live under `sdk/integration/` and are gated by the `integration` build tag.
+- End-to-end (e2e) tests live under `sdk/e2e/` and are gated by the `e2e` build tag.
 
 ```bash
 # from go-sdk/sdk
 go test ./... -count=1
-go test -tags=integration ./integration -count=1
+go test -tags=e2e ./e2e -count=1
 ```
 
 ## License
