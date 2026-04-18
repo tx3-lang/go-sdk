@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "sdk/v*.*.*"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.2
+          cache: true
+          cache-dependency-path: sdk/go.sum
+
+      - name: Validate release tag format
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#sdk/v}"
+
+          if [ "$TAG" = "$VERSION" ]; then
+            echo "Tag must start with sdk/v (got: $TAG)."
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must use semver MAJOR.MINOR.PATCH after sdk/v (got: $VERSION)."
+            exit 1
+          fi
+
+      - name: Run unit tests
+        working-directory: ./sdk
+        run: go test ./... -count=1
+
+      - name: Publish release notes
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
