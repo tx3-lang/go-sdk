@@ -24,7 +24,7 @@ func TestEd25519SignerFromKnownKey(t *testing.T) {
 
 	// Sign a known 32-byte hash
 	hashHex := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-	w, err := s.Sign(hashHex)
+	w, err := s.Sign(signer.SignRequest{TxHashHex: hashHex})
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestEd25519SignerInvalidHashLength(t *testing.T) {
 	seedHex := "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
 	s, _ := signer.Ed25519SignerFromHex("addr", seedHex)
 
-	_, err := s.Sign("aabb") // 2 bytes, not 32
+	_, err := s.Sign(signer.SignRequest{TxHashHex: "aabb"}) // 2 bytes, not 32
 	if err == nil {
 		t.Fatal("expected error for invalid hash length")
 	}
@@ -98,7 +98,7 @@ func TestEd25519SignerFromMnemonic(t *testing.T) {
 
 	// Should be able to sign
 	hashHex := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-	w, err := s.Sign(hashHex)
+	w, err := s.Sign(signer.SignRequest{TxHashHex: hashHex})
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
 	}
@@ -121,7 +121,9 @@ func TestCustomSignerIntegration(t *testing.T) {
 		t.Errorf("expected address 'addr_mock', got %q", s.Address())
 	}
 
-	w, err := s.Sign("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	w, err := s.Sign(signer.SignRequest{
+		TxHashHex: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+	})
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
 	}
@@ -138,7 +140,7 @@ type mockSigner struct {
 }
 
 func (m *mockSigner) Address() string { return m.address }
-func (m *mockSigner) Sign(txHashHex string) (*signer.TxWitness, error) {
+func (m *mockSigner) Sign(_ signer.SignRequest) (*signer.TxWitness, error) {
 	return signer.NewVKeyWitness(m.pubKey, m.sig), nil
 }
 

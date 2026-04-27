@@ -56,9 +56,9 @@ func (s *Ed25519Signer) Address() string {
 	return s.address
 }
 
-// Sign produces a VKey witness for the given transaction hash (hex-encoded).
-func (s *Ed25519Signer) Sign(txHashHex string) (*TxWitness, error) {
-	hashBytes, err := hex.DecodeString(txHashHex)
+// Sign produces a VKey witness from the SignRequest's transaction hash.
+func (s *Ed25519Signer) Sign(request SignRequest) (*TxWitness, error) {
+	hashBytes, err := hex.DecodeString(request.TxHashHex)
 	if err != nil {
 		return nil, &InvalidHashError{Detail: "hex decode failed", Cause: err}
 	}

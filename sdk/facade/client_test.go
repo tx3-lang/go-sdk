@@ -395,7 +395,7 @@ type mockSigner struct {
 
 func (m *mockSigner) Address() string { return m.address }
 
-func (m *mockSigner) Sign(_ string) (*signer.TxWitness, error) {
+func (m *mockSigner) Sign(_ signer.SignRequest) (*signer.TxWitness, error) {
 	return signer.NewVKeyWitness(m.pubKey, m.sig), nil
 }
 
