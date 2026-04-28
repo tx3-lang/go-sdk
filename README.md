@@ -138,16 +138,19 @@ client.WithParty("sender", tx3.SignerParty(&MySigner{}))
 ### Manual witness attachment
 
 When a witness is produced outside any registered signer — for example by an
-external wallet app or a remote signing service — attach it to the `ResolvedTx`
-before `Sign()`:
+external wallet app or a remote signing service — resolve the transaction
+first, hand the resolved hash (or full tx CBOR) to the wallet, then attach
+the returned witness before `Sign()`:
 
 ```go
 import "github.com/tx3-lang/go-sdk/sdk/trp"
 
-var witness trp.TxWitness // from external wallet
-
 resolved, err := client.Tx("transfer").Arg("quantity", 10_000_000).Resolve(ctx)
 if err != nil { /* ... */ }
+
+// Hand resolved.Hash (or resolved.TxHex) to the external wallet and get
+// back a witness. The wallet needs the resolved tx to sign.
+var witness trp.TxWitness // sign resolved.Hash with external wallet
 
 signed, err := resolved.AddWitness(witness).Sign()
 if err != nil { /* ... */ }
