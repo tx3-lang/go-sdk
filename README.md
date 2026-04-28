@@ -1,11 +1,17 @@
 # tx3-sdk (Go)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/tx3-lang/go-sdk/sdk.svg)](https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk)
+[![CI](https://github.com/tx3-lang/go-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/tx3-lang/go-sdk/actions/workflows/ci.yml)
+[![Tx3 docs](https://img.shields.io/badge/Tx3-docs-blue.svg)](https://docs.txpipe.io/tx3)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-The official Go SDK for [Tx3](https://tx3.land) — a DSL and protocol suite for defining and executing UTxO-based blockchain transactions declaratively. Load a compiled `.tii` protocol, bind parties and signers, and drive the full transaction lifecycle (resolve, sign, submit, confirm) via the Transaction Resolve Protocol (TRP).
+The official Go SDK for [Tx3](https://docs.txpipe.io/tx3) — a DSL and protocol suite for defining and executing UTxO-based blockchain transactions declaratively. Load a compiled `.tii` protocol, bind parties and signers, and drive the full transaction lifecycle (resolve, sign, submit, confirm) via the Transaction Resolve Protocol (TRP).
 
 This repository is organized as a monorepo. The publishable Go SDK module lives in `sdk/`.
+
+## What is Tx3
+
+Tx3 is a domain-specific language and protocol suite for declarative, type-safe UTxO transactions. Authors write `.tx3` files describing parties, environment, and transactions; the toolchain compiles them to `.tii` artifacts that this SDK loads at runtime to drive the resolve → sign → submit → wait lifecycle through a TRP server. See the [Tx3 docs](https://docs.txpipe.io/tx3) for project context.
 
 ## Installation
 
@@ -82,7 +88,8 @@ func main() {
 | `Tx3Client` | Facade | Entry point holding protocol, TRP client, and party bindings |
 | `TxBuilder` | Invocation builder | Collects args, resolves via TRP |
 | `Party` | Party | Named participant — `AddressParty` (read-only) or `SignerParty` (signing) |
-| `Signer` | Signer | Interface producing a `TxWitness` for a tx hash |
+| `Signer` | Signer | Interface producing a `TxWitness` for a `SignRequest` |
+| `SignRequest` | SignRequest | Input passed to `Signer.Sign`: `TxHashHex` + `TxCborHex` |
 | `CardanoSigner` | Cardano Signer | BIP32-Ed25519 signer at `m/1852'/1815'/0'/0/0` |
 | `Ed25519Signer` | Ed25519 Signer | Generic raw-key Ed25519 signer |
 | `ResolvedTx` | Resolved transaction | Output of `Resolve()`, ready for signing |
@@ -109,17 +116,46 @@ status, err := client.CheckStatus(ctx, []string{txHash})
 
 ### Custom Signer
 
+Implement the `Signer` interface. `Sign` receives a `SignRequest` carrying both
+the tx hash and the full tx CBOR; hash-based signers read `TxHashHex`, tx-based
+signers (e.g. wallet bridges) read `TxCborHex`.
+
 ```go
+import "github.com/tx3-lang/go-sdk/sdk/signer"
+
 type MySigner struct { /* ... */ }
 
 func (s *MySigner) Address() string { return "addr_test1..." }
-func (s *MySigner) Sign(txHashHex string) (*signer.TxWitness, error) {
-    // Your signing logic here
+
+func (s *MySigner) Sign(request signer.SignRequest) (*signer.TxWitness, error) {
+    // sign request.TxHashHex with your key
     return signer.NewVKeyWitness(pubKeyHex, signatureHex), nil
 }
 
 client.WithParty("sender", tx3.SignerParty(&MySigner{}))
 ```
+
+### Manual witness attachment
+
+When a witness is produced outside any registered signer — for example by an
+external wallet app or a remote signing service — attach it to the `ResolvedTx`
+before `Sign()`:
+
+```go
+import "github.com/tx3-lang/go-sdk/sdk/trp"
+
+var witness trp.TxWitness // from external wallet
+
+resolved, err := client.Tx("transfer").Arg("quantity", 10_000_000).Resolve(ctx)
+if err != nil { /* ... */ }
+
+signed, err := resolved.AddWitness(witness).Sign()
+if err != nil { /* ... */ }
+
+submitted, err := signed.Submit(ctx)
+```
+
+`AddWitness` may be called any number of times; manual witnesses are appended after registered-signer witnesses in attach order.
 
 ### Error handling
 
