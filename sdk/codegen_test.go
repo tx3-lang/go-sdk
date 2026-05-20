@@ -1,9 +1,15 @@
+//go:build codegen
+
+// This test exercises the .trix/client-lib codegen plugin (Handlebars
+// templates + tx3c), not the SDK runtime. It is gated behind the `codegen`
+// build tag so it runs only in the dedicated codegen CI job.
 package tx3sdk_test
 
 import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,8 +29,9 @@ func resolveTx3c(t *testing.T) string {
 }
 
 // TestCodegenClientLib renders the .trix/client-lib plugin against the shared
-// transfer fixture and builds the result. A successful render that produces
-// uncompilable bindings is a failure.
+// transfer fixture, asserts the expected public surface is present, and builds
+// the result. A successful render that produces uncompilable or empty bindings
+// is a failure.
 func TestCodegenClientLib(t *testing.T) {
 	sdkDir, err := os.Getwd()
 	if err != nil {
@@ -55,6 +62,24 @@ func TestCodegenClientLib(t *testing.T) {
 	for _, name := range []string{"protocol.go", "go.mod"} {
 		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
 			t.Fatalf("expected generated file %s: %v", name, err)
+		}
+	}
+
+	// Smoke-test the generated surface: the template must emit protocol
+	// identity, the per-transaction types, and the profile surface.
+	src, err := os.ReadFile(filepath.Join(outDir, "protocol.go"))
+	if err != nil {
+		t.Fatalf("read generated protocol.go: %v", err)
+	}
+	for _, want := range []string{
+		"TargetTIIVersion",
+		"type TransferParams struct",
+		"TRANSFER_TIR",
+		"func (c *Client) Transfer(",
+		"var Profiles",
+	} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("generated protocol.go missing expected symbol: %s", want)
 		}
 	}
 

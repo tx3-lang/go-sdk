@@ -26,14 +26,33 @@ jobs:
           cache: true
           cache-dependency-path: sdk/go.sum
 
+      - name: Run unit tests
+        working-directory: ./sdk
+        run: go test ./... -count=1
+
+  codegen:
+    name: codegen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.2
+          cache: true
+          cache-dependency-path: sdk/go.sum
+
       - name: Setup tx3 toolchain
         uses: tx3-lang/actions/setup@v1
         with:
           channel: beta
 
-      - name: Run unit tests
+      - name: Run codegen render-fixture test
         working-directory: ./sdk
-        run: go test ./... -count=1
+        run: go test -tags=codegen -run TestCodegenClientLib ./... -count=1
 
   e2e:
     name: e2e
