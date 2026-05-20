@@ -3,11 +3,9 @@
 # CI artifact — not part of the SDK.
 #
 # Renders the .trix/client-lib codegen plugin against the shared transfer
-# fixture and verifies the result. The subject under test is the Handlebars
-# templates + tx3c integration, not the SDK runtime.
-#
-# Steps: invoke `tx3c codegen`, assert the expected files exist, smoke-check
-# the generated surface, and compile the output against this repo's SDK.
+# fixture and verifies the result the way a consumer would: the rendered module
+# resolves the published go-sdk at the version its generated go.mod pins — no
+# replace directives.
 #
 # Requires `tx3c` and `go` on PATH.
 set -euo pipefail
@@ -34,10 +32,6 @@ for sym in \
   grep -qF "$sym" "$gen/protocol.go" || { echo "generated protocol.go missing: $sym"; exit 1; }
 done
 
-# Build the rendered package against this repo's SDK, not a published release.
-printf 'module codegentest\n\ngo 1.24.2\n\nrequire github.com/tx3-lang/go-sdk/sdk v0.0.0\n\nreplace github.com/tx3-lang/go-sdk/sdk => %s/sdk\n' \
-  "$repo_root" > "$gen/go.mod"
-cp "$repo_root/sdk/go.sum" "$gen/go.sum"
-( cd "$gen" && GOFLAGS=-mod=mod go build ./... )
+( cd "$gen" && go mod tidy && go build ./... )
 
 echo "codegen check passed"
