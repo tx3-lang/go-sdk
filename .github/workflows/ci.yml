@@ -50,9 +50,8 @@ jobs:
         with:
           channel: beta
 
-      - name: Run codegen render-fixture test
-        working-directory: ./sdk
-        run: go test -tags=codegen -run TestCodegenClientLib ./... -count=1
+      - name: Render and verify codegen plugin
+        run: bash .github/scripts/codegen-check.sh
 
   e2e:
     name: e2e
