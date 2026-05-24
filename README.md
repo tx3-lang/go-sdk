@@ -35,18 +35,13 @@ import (
 )
 
 func main() {
-    // Load a compiled .tii protocol
+    // 1. Load a compiled .tii protocol
     protocol, err := tx3.ProtocolFromFile("transfer.tii")
     if err != nil {
         log.Fatal(err)
     }
 
-    // Connect to a TRP server
-    trpClient := tx3.NewTRPClient(trp.ClientOptions{
-        Endpoint: "http://localhost:3000",
-    })
-
-    // Create a Cardano signer from a mnemonic
+    // 2. Build a Cardano signer from a mnemonic
     mySigner, err := signer.CardanoSignerFromMnemonic(
         "addr_test1qz...",
         "word1 word2 ... word24",
@@ -55,21 +50,37 @@ func main() {
         log.Fatal(err)
     }
 
-    // Configure client with profile and parties
-    client := tx3.NewClient(protocol, trpClient).
+    // 3. Build a client: configure TRP, profile, and parties on the builder
+    client, err := tx3.ProtocolClient(protocol).
+        TRP(trp.ClientOptions{Endpoint: "http://localhost:3000"}).
         WithProfile("preprod").
         WithParty("sender", tx3.SignerParty(mySigner)).
-        WithParty("receiver", tx3.AddressParty("addr_test1qz..."))
+        WithParty("receiver", tx3.AddressParty("addr_test1qz...")).
+        Build()
+    if err != nil {
+        log.Fatal(err)
+    }
 
     ctx := context.Background()
 
-    // Build, resolve, sign, submit, and wait for confirmation
-    status, err := client.Tx("transfer").
-        Arg("quantity", 10_000_000).
-        Resolve(ctx)         // -> ResolvedTx
-        .Sign()              // -> SignedTx
-        .Submit(ctx)         // -> SubmittedTx
-        .WaitForConfirmed(ctx, tx3.DefaultPollConfig())
+    // 4. Build, resolve, sign, submit, and wait for confirmation
+    txb, err := client.Tx("transfer")
+    if err != nil {
+        log.Fatal(err)
+    }
+    resolved, err := txb.Arg("quantity", 10_000_000).Resolve(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    signed, err := resolved.Sign()
+    if err != nil {
+        log.Fatal(err)
+    }
+    submitted, err := signed.Submit(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    status, err := submitted.WaitForConfirmed(ctx, tx3.DefaultPollConfig())
     if err != nil {
         log.Fatal(err)
     }
@@ -78,16 +89,29 @@ func main() {
 }
 ```
 
-> **Note:** The quick-start example above shows the conceptual flow. In real code, check errors at each step since Go doesn't chain errors across method calls.
+All fallible validation — TRP endpoint present, profile declared, every bound
+party declared — happens inside `Build()`, which returns `*MissingTrpEndpointError`,
+`*tii.UnknownProfileError`, or `*facade.UnknownPartyError` (all discriminable via
+`errors.As`). Optional setters never fail, so chains stay fluent. Profile selection
+is **builder-only**: there is no profile-switching method on the built client.
+Switching profiles requires a new builder.
+
+> **Note on naming:** Go uses the cross-package factory `tx3.ProtocolClient(p)`
+> (equivalently `facade.FromProtocol(p)`) instead of a `Protocol.Client()` method
+> to avoid a `tii → facade → tii` import cycle. Other SDKs (web, python) do
+> expose `Protocol.client()`.
 
 ## Concepts
 
 | SDK Type | Glossary Term | Description |
 |---|---|---|
 | `Protocol` | TII / Protocol | Loaded `.tii` file exposing transactions, parties, and profiles |
-| `Tx3Client` | Facade | Entry point holding protocol, TRP client, and party bindings |
-| `TxBuilder` | Invocation builder | Collects args, resolves via TRP |
+| `Tx3ClientBuilder` | Client builder | Fluent builder seeded by `tx3.ProtocolClient(p)` or `facade.FromParts(...)`; absorbs all fallible validation in `Build()` |
+| `Tx3Client` | Facade | Output of `Tx3ClientBuilder.Build()` — owns the deconstructed protocol parts, TRP client, profile, and party bindings |
+| `TxBuilder` | Invocation builder | Source-agnostic; collects args, resolves via TRP |
 | `Party` | Party | Named participant — `AddressParty` (read-only) or `SignerParty` (signing) |
+| `Profile` | Profile | `{Environment, Parties}` value baked into the client; embedded by codegen plugins, decomposed from `Protocol` by `FromProtocol` |
+| `MissingTrpEndpointError` / `UnknownPartyError` | Builder errors | Returned by `Build()`; implement the `facade.FacadeError` marker |
 | `Signer` | Signer | Interface producing a `TxWitness` for a `SignRequest` |
 | `SignRequest` | SignRequest | Input passed to `Signer.Sign`: `TxHashHex` + `TxCborHex` |
 | `CardanoSigner` | Cardano Signer | BIP32-Ed25519 signer at `m/1852'/1815'/0'/0/0` |
@@ -98,6 +122,25 @@ func main() {
 | `PollConfig` | Poll configuration | Controls `WaitForConfirmed` / `WaitForFinalized` polling |
 
 ## Advanced usage
+
+### Skipping the runtime `.tii` (codegen flow)
+
+If you've run `trix codegen` to generate typed bindings, your generated `Client`
+embeds the per-transaction TIR envelopes and per-profile data at codegen time —
+no `.tii` artifact at runtime. Under the hood it seeds the same builder via
+`facade.FromParts(transactions, profiles, knownParties)` and routes typed
+per-party setters through `WithPartyUnchecked`. You can also call `FromParts`
+directly from hand-written code (`tx3.FromParts` is the same factory re-exported
+at the package root):
+
+```go
+import tx3 "github.com/tx3-lang/go-sdk/sdk"
+
+client, err := tx3.FromParts(transactions, profiles, []string{"sender", "receiver"}).
+    TRPEndpoint("http://localhost:3000").
+    WithPartyUnchecked("sender", tx3.SignerParty(mySigner)).
+    Build()
+```
 
 ### Low-level TRP client
 
@@ -165,12 +208,21 @@ submitted, err := signed.Submit(ctx)
 All errors are discriminable via `errors.As()` — no string matching needed:
 
 ```go
-import "github.com/tx3-lang/go-sdk/sdk/facade"
+import (
+    "github.com/tx3-lang/go-sdk/sdk/facade"
+    "github.com/tx3-lang/go-sdk/sdk/tii"
+)
 
-_, err := client.Tx("transfer").Resolve(ctx)
-var unknownParty *facade.UnknownPartyError
-if errors.As(err, &unknownParty) {
-    fmt.Printf("Party %q not found in protocol\n", unknownParty.Name)
+_, err := tx3.ProtocolClient(protocol).Build()
+var missingTRP *facade.MissingTrpEndpointError
+if errors.As(err, &missingTRP) {
+    // no TRP endpoint supplied via TRP() / TRPEndpoint()
+}
+
+_, err = client.Tx("transfer")
+var unknownTx *tii.UnknownTxError
+if errors.As(err, &unknownTx) {
+    fmt.Printf("Tx %q not declared by protocol\n", unknownTx.Name)
 }
 ```
 
