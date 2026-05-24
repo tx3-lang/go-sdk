@@ -24,7 +24,6 @@ import (
 	"github.com/tx3-lang/go-sdk/sdk/facade"
 	"github.com/tx3-lang/go-sdk/sdk/signer"
 	"github.com/tx3-lang/go-sdk/sdk/tii"
-	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 func skipIfNoTRP(t *testing.T) {
@@ -32,14 +31,6 @@ func skipIfNoTRP(t *testing.T) {
 	if os.Getenv("TRP_ENDPOINT_PREPROD") == "" {
 		t.Skip("TRP_ENDPOINT_PREPROD not set, skipping e2e test")
 	}
-}
-
-func trpHeadersFromEnv() map[string]string {
-	apiKey := os.Getenv("TRP_API_KEY_PREPROD")
-	if apiKey == "" {
-		return nil
-	}
-	return map[string]string{"dmtr-api-key": apiKey}
 }
 
 func requireEnv(t *testing.T, name string) string {
@@ -51,18 +42,30 @@ func requireEnv(t *testing.T, name string) string {
 	return v
 }
 
-func TestE2EHappyPath(t *testing.T) {
-	skipIfNoTRP(t)
-	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
-	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
-	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
-
+// e2eBuilder seeds a Tx3ClientBuilder from the test fixture and applies the
+// preprod profile + (optional) dmtr-api-key header from the environment.
+func e2eBuilder(t *testing.T, endpoint string) *facade.Tx3ClientBuilder {
+	t.Helper()
 	protocol, err := tii.FromFile("../testdata/transfer.tii")
 	if err != nil {
 		t.Fatalf("FromFile failed: %v", err)
 	}
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint, Headers: trpHeadersFromEnv()})
+	builder := facade.FromProtocol(protocol).
+		TRPEndpoint(endpoint).
+		WithProfile("preprod")
+
+	if apiKey := os.Getenv("TRP_API_KEY_PREPROD"); apiKey != "" {
+		builder = builder.WithHeader("dmtr-api-key", apiKey)
+	}
+	return builder
+}
+
+func TestE2EHappyPath(t *testing.T) {
+	skipIfNoTRP(t)
+	endpoint := requireEnv(t, "TRP_ENDPOINT_PREPROD")
+	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
+	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
 	cardanoSigner, err := signer.CardanoSignerFromMnemonic(partyAAddr, partyAMnemonic)
 	if err != nil {
@@ -74,17 +77,23 @@ func TestE2EHappyPath(t *testing.T) {
 		partyBAddr = partyAAddr
 	}
 
-	client := facade.NewClient(protocol, trpClient).
-		WithProfile("preprod").
+	client, err := e2eBuilder(t, endpoint).
 		WithParty("sender", facade.SignerParty(cardanoSigner)).
 		WithParty("receiver", facade.AddressParty(partyBAddr)).
-		WithParty("middleman", facade.AddressParty(partyBAddr))
+		WithParty("middleman", facade.AddressParty(partyBAddr)).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
 
-	resolved, err := client.Tx("transfer").
-		Arg("quantity", 10_000_000).
-		Resolve(ctx)
+	txb, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+
+	resolved, err := txb.Arg("quantity", 10_000_000).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -115,15 +124,21 @@ func TestE2EBadEndpoint(t *testing.T) {
 		t.Fatalf("FromFile failed: %v", err)
 	}
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: "http://localhost:1"})
-	client := facade.NewClient(protocol, trpClient).
+	client, err := facade.FromProtocol(protocol).
+		TRPEndpoint("http://localhost:1").
 		WithParty("sender", facade.AddressParty("addr_test1...")).
 		WithParty("receiver", facade.AddressParty("addr_test1...")).
-		WithParty("middleman", facade.AddressParty("addr_test1..."))
+		WithParty("middleman", facade.AddressParty("addr_test1...")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
-	_, err = client.Tx("transfer").
-		Arg("quantity", 100).
-		Resolve(context.Background())
+	txb, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	_, err = txb.Arg("quantity", 100).Resolve(context.Background())
 	if err == nil {
 		t.Fatal("expected error for bad endpoint")
 	}
@@ -135,25 +150,26 @@ func TestE2EPollTimeout(t *testing.T) {
 	partyAAddr := requireEnv(t, "TEST_PARTY_A_ADDRESS")
 	partyAMnemonic := requireEnv(t, "TEST_PARTY_A_MNEMONIC")
 
-	protocol, err := tii.FromFile("../testdata/transfer.tii")
-	if err != nil {
-		t.Fatalf("FromFile failed: %v", err)
-	}
-
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: endpoint, Headers: trpHeadersFromEnv()})
 	cardanoSigner, err := signer.CardanoSignerFromMnemonic(partyAAddr, partyAMnemonic)
 	if err != nil {
 		t.Fatalf("CardanoSignerFromMnemonic failed: %v", err)
 	}
 
-	client := facade.NewClient(protocol, trpClient).
-		WithProfile("preprod").
+	client, err := e2eBuilder(t, endpoint).
 		WithParty("sender", facade.SignerParty(cardanoSigner)).
 		WithParty("receiver", facade.AddressParty(partyAAddr)).
-		WithParty("middleman", facade.AddressParty(partyAAddr))
+		WithParty("middleman", facade.AddressParty(partyAAddr)).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
-	resolved, err := client.Tx("transfer").Arg("quantity", 10_000_000).Resolve(ctx)
+	txb, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	resolved, err := txb.Arg("quantity", 10_000_000).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}

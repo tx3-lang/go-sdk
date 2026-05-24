@@ -6,26 +6,58 @@ import (
 
 	"github.com/tx3-lang/go-sdk/sdk/core"
 	"github.com/tx3-lang/go-sdk/sdk/signer"
-	"github.com/tx3-lang/go-sdk/sdk/tii"
 	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
 // TxBuilder collects transaction arguments and resolves the transaction via TRP.
+//
+// Source-agnostic: holds the TIR envelope directly, plus the environment
+// values from the selected profile (with builder-supplied overrides already
+// folded in), the bound parties, and the typed args. Drives a single Resolve()
+// path regardless of whether the upstream was a runtime-loaded *tii.Protocol
+// or codegen-embedded fragments.
 type TxBuilder struct {
-	protocol *tii.Protocol
-	trp      *trp.Client
-	txName   string
-	args     map[string]interface{}
-	parties  map[string]Party
-	profile  *string
+	tir     core.TirEnvelope
+	trp     *trp.Client
+	env     core.EnvMap
+	parties map[string]Party
+	args    map[string]interface{}
 }
 
-// Arg sets a single transaction argument. The key is matched case-insensitively
-// against protocol-declared parameter names.
+// newTxBuilder is the internal constructor used by Tx3Client.Tx().
+func newTxBuilder(trpClient *trp.Client, tir core.TirEnvelope) *TxBuilder {
+	return &TxBuilder{
+		tir:     tir,
+		trp:     trpClient,
+		env:     core.EnvMap{},
+		parties: make(map[string]Party),
+		args:    make(map[string]interface{}),
+	}
+}
+
+// Env sets the environment values applied to this transaction.
+func (b *TxBuilder) Env(env core.EnvMap) *TxBuilder {
+	b.env = core.EnvMap{}
+	for k, v := range env {
+		b.env[k] = v
+	}
+	return b
+}
+
+// Parties attaches party definitions (case-insensitive names).
+func (b *TxBuilder) Parties(parties map[string]Party) *TxBuilder {
+	for name, party := range parties {
+		b.parties[strings.ToLower(name)] = party
+	}
+	return b
+}
+
+// Arg sets a single transaction argument. The key is matched case-
+// insensitively against protocol-declared parameter names.
 func (b *TxBuilder) Arg(name string, value interface{}) *TxBuilder {
 	coerced, err := core.CoerceArg(value)
 	if err != nil {
-		// Store raw value; validation happens at resolve time
+		// Store raw value; validation happens server-side.
 		b.args[core.NormalizeArgKey(name)] = value
 	} else {
 		b.args[core.NormalizeArgKey(name)] = coerced
@@ -50,57 +82,32 @@ type signerParty struct {
 // Resolve invokes the TRP server to resolve this transaction.
 // Returns a ResolvedTx ready for signing.
 func (b *TxBuilder) Resolve(ctx context.Context) (*ResolvedTx, error) {
-	// Create invocation from protocol
-	inv, err := b.protocol.Invoke(b.txName, b.profile)
-	if err != nil {
-		return nil, err
+	merged := map[string]interface{}{}
+	for k, v := range b.env {
+		merged[k] = v
 	}
-
-	// Validate parties and inject their addresses
-	protocolParties := b.protocol.Parties()
-	var signers []signerParty
 	for name, party := range b.parties {
-		// Check that the party is known to the protocol
-		found := false
-		for pName := range protocolParties {
-			if strings.EqualFold(pName, name) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, &UnknownPartyError{Name: name}
-		}
-
-		// Inject party address as an argument
-		inv.SetArg(name, party.partyAddress())
-
-		// Collect signers
-		if party.isSigner {
-			signers = append(signers, signerParty{name: name, signer: party.signer})
-		}
+		merged[name] = party.partyAddress()
 	}
-
-	// Set user-provided args (these override party-injected ones)
 	for k, v := range b.args {
-		inv.SetArg(k, v)
+		merged[k] = v
 	}
 
-	// Convert to resolve request
-	tirEnvelope, args, err := inv.IntoResolveRequest()
-	if err != nil {
-		return nil, err
-	}
-
-	// Call TRP resolve
 	resolveParams := trp.ResolveParams{
-		Tir:  tirEnvelope,
-		Args: args,
+		Tir:  b.tir,
+		Args: merged,
 	}
 
 	envelope, err := b.trp.Resolve(ctx, resolveParams)
 	if err != nil {
 		return nil, err
+	}
+
+	var signers []signerParty
+	for name, party := range b.parties {
+		if party.isSigner {
+			signers = append(signers, signerParty{name: name, signer: party.signer})
+		}
 	}
 
 	return &ResolvedTx{

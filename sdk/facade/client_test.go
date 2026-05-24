@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/tx3-lang/go-sdk/sdk/core"
 	"github.com/tx3-lang/go-sdk/sdk/facade"
 	"github.com/tx3-lang/go-sdk/sdk/signer"
 	"github.com/tx3-lang/go-sdk/sdk/tii"
@@ -69,52 +70,146 @@ func newMockTRPServer(t *testing.T) (*httptest.Server, *trp.Client) {
 	return server, client
 }
 
-func TestBuilderUnknownTransaction(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient := newMockTRPServer(t)
+func newBuilder(t *testing.T, server *httptest.Server) *facade.Tx3ClientBuilder {
+	t.Helper()
+	return facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
+		WithProfile("preprod")
+}
+
+func TestBuilder_MissingEndpoint(t *testing.T) {
+	_, err := facade.FromProtocol(newTestProtocol(t)).Build()
+	if err == nil {
+		t.Fatal("expected MissingTrpEndpointError")
+	}
+	var missing *facade.MissingTrpEndpointError
+	if !errors.As(err, &missing) {
+		t.Fatalf("expected *MissingTrpEndpointError, got %T: %v", err, err)
+	}
+}
+
+func TestBuilder_UnknownProfile(t *testing.T) {
+	server, _ := newMockTRPServer(t)
 	defer server.Close()
 
-	client := facade.NewClient(protocol, trpClient)
-	_, err := client.Tx("nonexistent").
-		Arg("quantity", 100).
-		Resolve(context.Background())
+	_, err := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
+		WithProfile("not-a-profile").
+		Build()
+	if err == nil {
+		t.Fatal("expected UnknownProfileError")
+	}
+	var profErr *tii.UnknownProfileError
+	if !errors.As(err, &profErr) {
+		t.Fatalf("expected *tii.UnknownProfileError, got %T: %v", err, err)
+	}
+}
 
+func TestBuilder_UnknownParty(t *testing.T) {
+	server, _ := newMockTRPServer(t)
+	defer server.Close()
+
+	_, err := newBuilder(t, server).
+		WithParty("stranger", facade.AddressParty("addr_stranger")).
+		Build()
+	if err == nil {
+		t.Fatal("expected UnknownPartyError")
+	}
+	var partyErr *facade.UnknownPartyError
+	if !errors.As(err, &partyErr) {
+		t.Fatalf("expected *facade.UnknownPartyError, got %T: %v", err, err)
+	}
+}
+
+func TestBuilder_WithPartyUncheckedBypassesValidation(t *testing.T) {
+	server, _ := newMockTRPServer(t)
+	defer server.Close()
+
+	_, err := newBuilder(t, server).
+		WithPartyUnchecked("stranger", facade.AddressParty("addr_stranger")).
+		Build()
+	if err != nil {
+		t.Fatalf("WithPartyUnchecked should not validate, got error: %v", err)
+	}
+}
+
+func TestTx_UnknownTransaction(t *testing.T) {
+	server, _ := newMockTRPServer(t)
+	defer server.Close()
+
+	client, err := newBuilder(t, server).
+		WithParty("sender", facade.AddressParty("addr_sender")).
+		WithParty("receiver", facade.AddressParty("addr_receiver")).
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	_, err = client.Tx("nonexistent")
 	if err == nil {
 		t.Fatal("expected error for unknown transaction")
 	}
 	var txErr *tii.UnknownTxError
 	if !errors.As(err, &txErr) {
-		t.Fatalf("expected UnknownTxError, got %T: %v", err, err)
+		t.Fatalf("expected *tii.UnknownTxError, got %T: %v", err, err)
 	}
 }
 
-func TestBuilderUnknownParty(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient := newMockTRPServer(t)
+func TestBuiltClient_WithParty_RejectsUnknown(t *testing.T) {
+	server, _ := newMockTRPServer(t)
 	defer server.Close()
 
-	client := facade.NewClient(protocol, trpClient).
-		WithParty("unknown_party", facade.AddressParty("addr_test1..."))
-
-	_, err := client.Tx("transfer").
-		Arg("quantity", 100).
-		Resolve(context.Background())
-
+	client, _ := newBuilder(t, server).Build()
+	_, err := client.WithParty("ghost", facade.AddressParty("addr_ghost"))
 	if err == nil {
-		t.Fatal("expected error for unknown party")
+		t.Fatal("expected UnknownPartyError on late-binding")
 	}
 	var partyErr *facade.UnknownPartyError
 	if !errors.As(err, &partyErr) {
-		t.Fatalf("expected UnknownPartyError, got %T: %v", err, err)
+		t.Fatalf("expected *facade.UnknownPartyError, got %T: %v", err, err)
 	}
-	if partyErr.Name != "unknown_party" {
-		t.Errorf("expected party name 'unknown_party', got %q", partyErr.Name)
+}
+
+func TestBuilder_WithEnvValue_OverridesProfileEnv(t *testing.T) {
+	var receivedArgs map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]json.RawMessage
+		json.NewDecoder(r.Body).Decode(&req)
+		var params map[string]json.RawMessage
+		json.Unmarshal(req["params"], &params)
+		json.Unmarshal(params["args"], &receivedArgs)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jsonrpc": "2.0", "id": "1",
+			"result": map[string]interface{}{"hash": "abc", "tx": "def"},
+		})
+	}))
+	defer server.Close()
+
+	client, err := newBuilder(t, server).
+		WithPartyUnchecked("sender", facade.AddressParty("addr_sender")).
+		WithPartyUnchecked("receiver", facade.AddressParty("addr_receiver")).
+		WithPartyUnchecked("middleman", facade.AddressParty("addr_middleman")).
+		WithEnvValue("tax", float64(999)).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	_, err = b.Arg("quantity", 100).Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	if got, ok := receivedArgs["tax"].(float64); !ok || got != 999 {
+		t.Errorf("expected env override tax=999, got %v", receivedArgs["tax"])
 	}
 }
 
 func TestPartyAddressInjection(t *testing.T) {
-	protocol := newTestProtocol(t)
-
 	var receivedArgs map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]json.RawMessage
@@ -131,19 +226,24 @@ func TestPartyAddressInjection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: server.URL})
-	client := facade.NewClient(protocol, trpClient).
+	client, err := newBuilder(t, server).
 		WithParty("sender", facade.AddressParty("addr_sender_123")).
-		WithParty("receiver", facade.AddressParty("addr_receiver_456"))
+		WithParty("receiver", facade.AddressParty("addr_receiver_456")).
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
-	_, err := client.Tx("transfer").
-		Arg("quantity", 100).
-		Resolve(context.Background())
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	_, err = b.Arg("quantity", 100).Resolve(context.Background())
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
 
-	// Verify party addresses were injected into args
 	if receivedArgs["sender"] != "addr_sender_123" {
 		t.Errorf("expected sender address 'addr_sender_123', got %v", receivedArgs["sender"])
 	}
@@ -153,8 +253,7 @@ func TestPartyAddressInjection(t *testing.T) {
 }
 
 func TestFullBuilderChainWithMockSigner(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient := newMockTRPServer(t)
+	server, _ := newMockTRPServer(t)
 	defer server.Close()
 
 	mock := &mockSigner{
@@ -163,18 +262,22 @@ func TestFullBuilderChainWithMockSigner(t *testing.T) {
 		sig:     "11223344",
 	}
 
-	client := facade.NewClient(protocol, trpClient).
-		WithProfile("preprod").
+	client, err := newBuilder(t, server).
 		WithParty("sender", facade.SignerParty(mock)).
 		WithParty("receiver", facade.AddressParty("addr_receiver")).
-		WithParty("middleman", facade.AddressParty("addr_middleman"))
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
 
-	// Resolve
-	resolved, err := client.Tx("transfer").
-		Arg("quantity", 10_000_000).
-		Resolve(ctx)
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	resolved, err := b.Arg("quantity", 10_000_000).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -185,7 +288,6 @@ func TestFullBuilderChainWithMockSigner(t *testing.T) {
 		t.Error("expected non-empty TxHex")
 	}
 
-	// Sign
 	signed, err := resolved.Sign()
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
@@ -194,7 +296,6 @@ func TestFullBuilderChainWithMockSigner(t *testing.T) {
 		t.Errorf("expected 1 witness, got %d", len(signed.Witnesses()))
 	}
 
-	// Submit
 	submitted, err := signed.Submit(ctx)
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
@@ -203,7 +304,6 @@ func TestFullBuilderChainWithMockSigner(t *testing.T) {
 		t.Error("expected non-empty submitted hash")
 	}
 
-	// WaitForConfirmed
 	status, err := submitted.WaitForConfirmed(ctx, facade.DefaultPollConfig())
 	if err != nil {
 		t.Fatalf("WaitForConfirmed failed: %v", err)
@@ -213,10 +313,51 @@ func TestFullBuilderChainWithMockSigner(t *testing.T) {
 	}
 }
 
-func TestSubmitHashMismatch(t *testing.T) {
-	protocol := newTestProtocol(t)
+func TestFromParts_CodegenFlow(t *testing.T) {
+	var receivedArgs map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]json.RawMessage
+		json.NewDecoder(r.Body).Decode(&req)
+		var params map[string]json.RawMessage
+		json.Unmarshal(req["params"], &params)
+		json.Unmarshal(params["args"], &receivedArgs)
 
-	// Server returns a different hash on submit
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jsonrpc": "2.0", "id": "1",
+			"result": map[string]interface{}{"hash": "abc", "tx": "def"},
+		})
+	}))
+	defer server.Close()
+
+	protocol := newTestProtocol(t)
+	transactions := map[string]core.TirEnvelope{}
+	for name, tx := range protocol.Transactions() {
+		transactions[name] = tx.Tir
+	}
+
+	client, err := facade.FromParts(transactions, nil, nil).
+		TRPEndpoint(server.URL).
+		WithPartyUnchecked("sender", facade.AddressParty("addr_sender_codegen")).
+		WithPartyUnchecked("receiver", facade.AddressParty("addr_receiver_codegen")).
+		WithPartyUnchecked("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("FromParts build failed: %v", err)
+	}
+
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	if _, err := b.Arg("quantity", 1).Resolve(context.Background()); err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	if receivedArgs["sender"] != "addr_sender_codegen" {
+		t.Errorf("expected sender injected via FromParts/WithPartyUnchecked, got %v", receivedArgs["sender"])
+	}
+}
+
+func TestSubmitHashMismatch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]json.RawMessage
 		json.NewDecoder(r.Body).Decode(&req)
@@ -243,16 +384,21 @@ func TestSubmitHashMismatch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: server.URL})
 	mock := &mockSigner{address: "addr", pubKey: "aa", sig: "bb"}
-	client := facade.NewClient(protocol, trpClient).
+	client, err := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.SignerParty(mock)).
 		WithParty("receiver", facade.AddressParty("addr_r")).
-		WithParty("middleman", facade.AddressParty("addr_m"))
+		WithParty("middleman", facade.AddressParty("addr_m")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
-	resolved, _ := client.Tx("transfer").Arg("quantity", 100).Resolve(context.Background())
+	b, _ := client.Tx("transfer")
+	resolved, _ := b.Arg("quantity", 100).Resolve(context.Background())
 	signed, _ := resolved.Sign()
-	_, err := signed.Submit(context.Background())
+	_, err = signed.Submit(context.Background())
 
 	if err == nil {
 		t.Fatal("expected SubmitHashMismatchError")
@@ -264,8 +410,6 @@ func TestSubmitHashMismatch(t *testing.T) {
 }
 
 func TestWaitForConfirmedTimeout(t *testing.T) {
-	protocol := newTestProtocol(t)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]json.RawMessage
 		json.NewDecoder(r.Body).Decode(&req)
@@ -303,15 +447,17 @@ func TestWaitForConfirmedTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: server.URL})
 	mock := &mockSigner{address: "addr", pubKey: "aa", sig: "bb"}
-	client := facade.NewClient(protocol, trpClient).
+	client, _ := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.SignerParty(mock)).
 		WithParty("receiver", facade.AddressParty("addr_r")).
-		WithParty("middleman", facade.AddressParty("addr_m"))
+		WithParty("middleman", facade.AddressParty("addr_m")).
+		Build()
 
 	ctx := context.Background()
-	resolved, _ := client.Tx("transfer").Arg("quantity", 100).Resolve(ctx)
+	b, _ := client.Tx("transfer")
+	resolved, _ := b.Arg("quantity", 100).Resolve(ctx)
 	signed, _ := resolved.Sign()
 	submitted, _ := signed.Submit(ctx)
 
@@ -326,8 +472,6 @@ func TestWaitForConfirmedTimeout(t *testing.T) {
 }
 
 func TestWaitForConfirmedDropped(t *testing.T) {
-	protocol := newTestProtocol(t)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]json.RawMessage
 		json.NewDecoder(r.Body).Decode(&req)
@@ -362,15 +506,17 @@ func TestWaitForConfirmedDropped(t *testing.T) {
 	}))
 	defer server.Close()
 
-	trpClient := trp.NewClient(trp.ClientOptions{Endpoint: server.URL})
 	mock := &mockSigner{address: "addr", pubKey: "aa", sig: "bb"}
-	client := facade.NewClient(protocol, trpClient).
+	client, _ := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.SignerParty(mock)).
 		WithParty("receiver", facade.AddressParty("addr_r")).
-		WithParty("middleman", facade.AddressParty("addr_m"))
+		WithParty("middleman", facade.AddressParty("addr_m")).
+		Build()
 
 	ctx := context.Background()
-	resolved, _ := client.Tx("transfer").Arg("quantity", 100).Resolve(ctx)
+	b, _ := client.Tx("transfer")
+	resolved, _ := b.Arg("quantity", 100).Resolve(ctx)
 	signed, _ := resolved.Sign()
 	submitted, _ := signed.Submit(ctx)
 

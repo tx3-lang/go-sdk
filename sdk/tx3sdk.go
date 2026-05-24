@@ -20,6 +20,7 @@
 package tx3sdk
 
 import (
+	"github.com/tx3-lang/go-sdk/sdk/core"
 	"github.com/tx3-lang/go-sdk/sdk/facade"
 	"github.com/tx3-lang/go-sdk/sdk/signer"
 	"github.com/tx3-lang/go-sdk/sdk/tii"
@@ -58,10 +59,29 @@ func NewTRPClient(options TRPClientOptions) *trp.Client {
 // Tx3Client is the high-level entry point for building and submitting transactions.
 type Tx3Client = facade.Tx3Client
 
-// NewClient creates a new Tx3Client with the given protocol and TRP client.
-func NewClient(protocol *tii.Protocol, trpClient *trp.Client) *Tx3Client {
-	return facade.NewClient(protocol, trpClient)
+// Tx3ClientBuilder builds a Tx3Client. Obtained via Protocol.Client() or
+// facade.FromParts.
+type Tx3ClientBuilder = facade.Tx3ClientBuilder
+
+// ProtocolClient returns a fresh Tx3ClientBuilder seeded with the protocol's
+// transactions, profiles, and declared parties. Equivalent to
+// facade.FromProtocol(protocol). Idiomatic entry point for the dynamic flow.
+func ProtocolClient(protocol *tii.Protocol) *Tx3ClientBuilder {
+	return facade.FromProtocol(protocol)
 }
+
+// FromParts seeds a builder with already-deconstructed protocol fragments
+// (the codegen flow's entry point).
+func FromParts(
+	transactions map[string]core.TirEnvelope,
+	profiles map[string]facade.Profile,
+	knownParties []string,
+) *Tx3ClientBuilder {
+	return facade.FromParts(transactions, profiles, knownParties)
+}
+
+// Profile is the value type embedded in a Tx3Client's selected profile slot.
+type Profile = facade.Profile
 
 // TxBuilder collects transaction arguments and resolves the transaction.
 type TxBuilder = facade.TxBuilder
