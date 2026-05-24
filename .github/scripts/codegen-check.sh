@@ -8,6 +8,7 @@
 # replace directives.
 #
 # Requires `tx3c` and `go` on PATH.
+# Last verified against fleet v0.12.0 (unified Tx3ClientBuilder).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -28,7 +29,12 @@ for sym in \
   'type TransferParams struct' \
   'TRANSFER_TIR' \
   'func (c *Client) Transfer(' \
-  'var Profiles'; do
+  'type Profile string' \
+  'ProfileLocal' \
+  'ProfilePreprod' \
+  '_LOCAL_PROFILE' \
+  'facade.FromParts' \
+  'WithPartyUnchecked'; do
   grep -qF "$sym" "$gen/protocol.go" || { echo "generated protocol.go missing: $sym"; exit 1; }
 done
 
