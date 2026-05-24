@@ -4,11 +4,10 @@
 package protocol
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/tx3-lang/go-sdk/sdk/core"
+	"github.com/tx3-lang/go-sdk/sdk/facade"
 	"github.com/tx3-lang/go-sdk/sdk/trp"
 )
 
@@ -25,23 +24,27 @@ const (
 const EnvironmentSchema = `{{{json tii.environment}}}`
 
 {{/if}}
-// Profile holds the environment values and party addresses for a named TII profile.
-type Profile struct {
-	Environment core.EnvMap       `json:"environment"`
-	Parties     map[string]string `json:"parties"`
-}
+{{#if tii.profiles}}
+// Profile is the typed selector for an embedded profile.
+type Profile string
 
-const profilesJSON = `{{{json tii.profiles}}}`
+const (
+{{#each tii.profiles}}
+	Profile{{pascalCase @key}} Profile = "{{@key}}"
+{{/each}}
+)
 
-// Profiles enumerates the profiles embedded from the TII, keyed by name.
-var Profiles = func() map[string]Profile {
-	var parsed map[string]Profile
-	if err := json.Unmarshal([]byte(profilesJSON), &parsed); err != nil {
-		panic("codegen: invalid embedded profiles: " + err.Error())
+{{#each tii.profiles}}
+var _{{constantCase @key}}_PROFILE = func() facade.Profile {
+	var p facade.Profile
+	if err := json.Unmarshal([]byte(`{{{json this}}}`), &p); err != nil {
+		panic("codegen: invalid embedded {{@key}} profile: " + err.Error())
 	}
-	return parsed
+	return p
 }()
+{{/each}}
 
+{{/if}}
 {{#each tii.transactions}}
 // {{pascalCase @key}}Params holds the arguments for the {{@key}} transaction.
 type {{pascalCase @key}}Params struct {
@@ -58,46 +61,67 @@ var {{constantCase @key}}_TIR = core.TirEnvelope{
 }
 
 {{/each}}
-// Client is a thin protocol facade over the TRP client.
+// Client is a typed protocol facade wrapping facade.Tx3Client.
+//
+// All lifecycle state, party storage, resolve/sign/submit/wait, and error
+// handling live in the SDK. This wrapper only adds the typed shape of
+// per-transaction methods, per-party setters, and the embedded protocol
+// fragments.
 type Client struct {
-	trp     *trp.Client
-	profile *Profile
+	inner *facade.Tx3Client
 }
 
-// NewClient creates a Client over the given TRP client options.
-func NewClient(options trp.ClientOptions) *Client {
-	return &Client{trp: trp.NewClient(options)}
-}
-
-// WithProfile selects an embedded profile by name. Its environment values and
-// party addresses are applied to every subsequent transaction. It panics if
-// name is not a profile declared by the protocol.
-func (c *Client) WithProfile(name string) *Client {
-	profile, ok := Profiles[name]
-	if !ok {
-		panic(fmt.Sprintf("unknown profile %q", name))
+// NewClient creates a Client over the given TRP options{{#if tii.profiles}} and profile{{/if}}.
+//
+// The profile is locked in at construction; switching profiles requires a new Client.
+func NewClient(options trp.ClientOptions{{#if tii.profiles}}, profile Profile{{/if}}) *Client {
+	transactions := map[string]core.TirEnvelope{
+{{#each tii.transactions}}
+		"{{@key}}": {{constantCase @key}}_TIR,
+{{/each}}
 	}
-	c.profile = &profile
+{{#if tii.profiles}}
+	profiles := map[string]facade.Profile{
+{{#each tii.profiles}}
+		"{{@key}}": _{{constantCase @key}}_PROFILE,
+{{/each}}
+	}
+{{else}}
+	profiles := map[string]facade.Profile{}
+{{/if}}
+
+	builder := facade.FromParts(transactions, profiles, nil).TRP(options)
+{{#if tii.profiles}}
+	builder = builder.WithProfile(string(profile))
+{{/if}}
+	inner, err := builder.Build()
+	if err != nil {
+		// Codegen invariant: the embedded protocol is internally consistent,
+		// so the only failure path is the caller-supplied options.
+		panic("codegen: builder construction failed: " + err.Error())
+	}
+	return &Client{inner: inner}
+}
+
+{{#each tii.parties}}
+// With{{pascalCase @key}} binds the {{@key}} party (signer or read-only address).
+// Overrides any address declared for that party by the selected profile.
+func (c *Client) With{{pascalCase @key}}(party facade.Party) *Client {
+	c.inner = c.inner.WithPartyUnchecked("{{@key}}", party)
 	return c
 }
 
-func (c *Client) resolve(ctx context.Context, tir core.TirEnvelope, args core.ArgMap) (*trp.TxEnvelope, error) {
-	params := trp.ResolveParams{Tir: tir, Args: args}
-	if c.profile != nil {
-		params.Env = c.profile.Environment
-		for name, address := range c.profile.Parties {
-			if _, set := args[name]; !set {
-				args[name] = address
-			}
-		}
-	}
-	return c.trp.Resolve(ctx, params)
-}
-
+{{/each}}
 {{#each tii.transactions}}
-// {{pascalCase @key}} resolves the {{@key}} transaction.
-func (c *Client) {{pascalCase @key}}(ctx context.Context, args {{pascalCase @key}}Params) (*trp.TxEnvelope, error) {
-	return c.resolve(ctx, {{constantCase @key}}_TIR, core.ArgMap{
+// {{pascalCase @key}} builds the {{@key}} transaction. Drive the returned builder with
+// .Resolve(ctx) and the rest of the lifecycle chain.
+func (c *Client) {{pascalCase @key}}(args {{pascalCase @key}}Params) *facade.TxBuilder {
+	b, err := c.inner.Tx("{{@key}}")
+	if err != nil {
+		// Codegen invariant: the embedded "{{@key}}" TIR is always declared.
+		panic("codegen: tx \"{{@key}}\" missing from embedded protocol")
+	}
+	return b.Args(map[string]interface{}{
 {{#each params.properties}}
 		"{{@key}}": args.{{pascalCase @key}},
 {{/each}}
@@ -105,7 +129,3 @@ func (c *Client) {{pascalCase @key}}(ctx context.Context, args {{pascalCase @key
 }
 
 {{/each}}
-// Submit sends a signed transaction to the network.
-func (c *Client) Submit(ctx context.Context, params trp.SubmitParams) (*trp.SubmitResponse, error) {
-	return c.trp.Submit(ctx, params)
-}

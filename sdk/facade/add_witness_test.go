@@ -56,17 +56,25 @@ func recordingTRPServer(t *testing.T) (*httptest.Server, *trp.Client, *trp.Submi
 }
 
 func TestResolvedTx_AddWitness_OnlyNoSigners(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient, captured := recordingTRPServer(t)
+	server, _, captured := recordingTRPServer(t)
 	defer server.Close()
 
-	client := facade.NewClient(protocol, trpClient).
+	client, err := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.AddressParty("addr_sender")).
 		WithParty("receiver", facade.AddressParty("addr_receiver")).
-		WithParty("middleman", facade.AddressParty("addr_middleman"))
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
-	resolved, err := client.Tx("transfer").Arg("quantity", 100).Resolve(ctx)
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	resolved, err := b.Arg("quantity", 100).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -89,18 +97,26 @@ func TestResolvedTx_AddWitness_OnlyNoSigners(t *testing.T) {
 }
 
 func TestResolvedTx_AddWitness_MixedWithRegisteredSigner(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient, captured := recordingTRPServer(t)
+	server, _, captured := recordingTRPServer(t)
 	defer server.Close()
 
 	mock := &mockSigner{address: "addr_sender", pubKey: "11", sig: "22"}
-	client := facade.NewClient(protocol, trpClient).
+	client, err := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.SignerParty(mock)).
 		WithParty("receiver", facade.AddressParty("addr_receiver")).
-		WithParty("middleman", facade.AddressParty("addr_middleman"))
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
-	resolved, err := client.Tx("transfer").Arg("quantity", 100).Resolve(ctx)
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	resolved, err := b.Arg("quantity", 100).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -125,17 +141,25 @@ func TestResolvedTx_AddWitness_MixedWithRegisteredSigner(t *testing.T) {
 }
 
 func TestResolvedTx_AddWitness_PreservesOrder(t *testing.T) {
-	protocol := newTestProtocol(t)
-	server, trpClient, captured := recordingTRPServer(t)
+	server, _, captured := recordingTRPServer(t)
 	defer server.Close()
 
-	client := facade.NewClient(protocol, trpClient).
+	client, err := facade.FromProtocol(newTestProtocol(t)).
+		TRPEndpoint(server.URL).
 		WithParty("sender", facade.AddressParty("addr_sender")).
 		WithParty("receiver", facade.AddressParty("addr_receiver")).
-		WithParty("middleman", facade.AddressParty("addr_middleman"))
+		WithParty("middleman", facade.AddressParty("addr_middleman")).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
 
 	ctx := context.Background()
-	resolved, err := client.Tx("transfer").Arg("quantity", 100).Resolve(ctx)
+	b, err := client.Tx("transfer")
+	if err != nil {
+		t.Fatalf("Tx failed: %v", err)
+	}
+	resolved, err := b.Arg("quantity", 100).Resolve(ctx)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}

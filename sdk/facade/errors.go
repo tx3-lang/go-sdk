@@ -21,6 +21,14 @@ func (e *UnknownPartyError) Error() string {
 }
 func (e *UnknownPartyError) isFacadeError() {}
 
+// MissingTrpEndpointError indicates Build() ran without a TRP endpoint.
+type MissingTrpEndpointError struct{}
+
+func (e *MissingTrpEndpointError) Error() string {
+	return "TRP endpoint not configured"
+}
+func (e *MissingTrpEndpointError) isFacadeError() {}
+
 // MissingParamsError indicates required parameters were not provided.
 type MissingParamsError struct {
 	Params []string

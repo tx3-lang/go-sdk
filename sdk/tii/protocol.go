@@ -61,6 +61,11 @@ func (p *Protocol) TiiVersion() string {
 	return p.spec.Tii.Version
 }
 
+// Environment returns the protocol-level environment schema, if declared.
+func (p *Protocol) Environment() *Schema {
+	return p.spec.Environment
+}
+
 // Invoke creates a new Invocation for the named transaction, optionally
 // pre-populated with environment values from the given profile.
 func (p *Protocol) Invoke(txName string, profile *string) (*Invocation, error) {
