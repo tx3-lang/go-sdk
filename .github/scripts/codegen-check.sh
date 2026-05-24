@@ -29,7 +29,12 @@ for sym in \
   'type TransferParams struct' \
   'TRANSFER_TIR' \
   'func (c *Client) Transfer(' \
-  'var Profiles'; do
+  'type Profile string' \
+  'ProfileLocal' \
+  'ProfilePreprod' \
+  '_LOCAL_PROFILE' \
+  'facade.FromParts' \
+  'WithPartyUnchecked'; do
   grep -qF "$sym" "$gen/protocol.go" || { echo "generated protocol.go missing: $sym"; exit 1; }
 done
 
