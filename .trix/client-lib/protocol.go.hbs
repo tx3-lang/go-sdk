@@ -45,6 +45,10 @@ var _{{constantCase @key}}_PROFILE = func() facade.Profile {
 {{/each}}
 
 {{/if}}
+{{#if tii.components.schemas}}
+// Named types for the protocol's custom (record / variant) types.
+{{{componentTypes tii.components.schemas "go"}}}
+{{/if}}
 {{#each tii.transactions}}
 // {{pascalCase @key}}Params holds the arguments for the {{@key}} transaction.
 type {{pascalCase @key}}Params struct {
