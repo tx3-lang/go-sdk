@@ -4,6 +4,7 @@ package tii
 import (
 	"encoding/json"
 	"os"
+	"strings"
 )
 
 // Protocol is the in-memory representation of a loaded TII file.
@@ -74,14 +75,29 @@ func (p *Protocol) Invoke(txName string, profile *string) (*Invocation, error) {
 		return nil, &UnknownTxError{Name: txName}
 	}
 
-	// Extract param types from the transaction schema
+	// User-defined record / variant schemas referenced by param $refs.
+	components := map[string]Schema{}
+	if p.spec.Components != nil {
+		components = p.spec.Components.Schemas
+	}
+
 	params := make(map[string]ParamType)
-	for name, schema := range tx.Params.Properties {
-		pt, err := ParamTypeFromSchema(schema)
-		if err != nil {
-			return nil, err
+
+	// Party addresses are implicit Address params.
+	for name := range p.spec.Parties {
+		params[strings.ToLower(name)] = ParamType{Kind: KindAddress}
+	}
+
+	// Protocol-level environment params.
+	if p.spec.Environment != nil {
+		for name, schema := range p.spec.Environment.Properties {
+			params[name] = ParamTypeFromSchema(schema, components)
 		}
-		params[name] = pt
+	}
+
+	// Transaction params.
+	for name, schema := range tx.Params.Properties {
+		params[name] = ParamTypeFromSchema(schema, components)
 	}
 
 	// Build required set

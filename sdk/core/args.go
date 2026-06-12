@@ -112,6 +112,28 @@ func CoerceArg(v interface{}) (interface{}, error) {
 		return "0x" + hex.EncodeToString(val), nil
 	case *big.Int:
 		return BigIntArg(val).ToJSON(), nil
+	case []interface{}:
+		// list / tuple: coerce each element recursively.
+		out := make([]interface{}, len(val))
+		for i, e := range val {
+			c, err := CoerceArg(e)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = c
+		}
+		return out, nil
+	case map[string]interface{}:
+		// map / record: coerce each value recursively.
+		out := make(map[string]interface{}, len(val))
+		for k, e := range val {
+			c, err := CoerceArg(e)
+			if err != nil {
+				return nil, err
+			}
+			out[k] = c
+		}
+		return out, nil
 	default:
 		return nil, fmt.Errorf("unsupported arg type: %T", v)
 	}

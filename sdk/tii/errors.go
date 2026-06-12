@@ -51,23 +51,3 @@ func (e *UnknownProfileError) Error() string {
 	return fmt.Sprintf("unknown profile: %q", e.Name)
 }
 func (e *UnknownProfileError) isTiiError() {}
-
-// InvalidParamsSchemaError indicates the transaction's params schema is malformed.
-type InvalidParamsSchemaError struct {
-	Detail string
-}
-
-func (e *InvalidParamsSchemaError) Error() string {
-	return fmt.Sprintf("invalid params schema: %s", e.Detail)
-}
-func (e *InvalidParamsSchemaError) isTiiError() {}
-
-// InvalidParamTypeError indicates an unrecognized parameter type in the schema.
-type InvalidParamTypeError struct {
-	Detail string
-}
-
-func (e *InvalidParamTypeError) Error() string {
-	return fmt.Sprintf("invalid param type: %s", e.Detail)
-}
-func (e *InvalidParamTypeError) isTiiError() {}
