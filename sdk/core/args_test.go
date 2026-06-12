@@ -100,6 +100,27 @@ func TestCoerceArgUnsupportedType(t *testing.T) {
 	}
 }
 
+func TestCoerceArgRecursesIntoCompounds(t *testing.T) {
+	// list/tuple: a []byte nested in a slice must still hex-encode.
+	got, err := core.CoerceArg([]interface{}{1, []byte{0xab, 0xcd}})
+	if err != nil {
+		t.Fatalf("CoerceArg list: %v", err)
+	}
+	list := got.([]interface{})
+	if list[0].(int64) != 1 || list[1].(string) != "0xabcd" {
+		t.Fatalf("unexpected list coercion: %#v", list)
+	}
+
+	// map/record: nested []byte value must hex-encode too.
+	got, err = core.CoerceArg(map[string]interface{}{"policy": []byte{0x01}})
+	if err != nil {
+		t.Fatalf("CoerceArg map: %v", err)
+	}
+	if got.(map[string]interface{})["policy"].(string) != "0x01" {
+		t.Fatalf("unexpected map coercion: %#v", got)
+	}
+}
+
 func TestNormalizeArgKey(t *testing.T) {
 	if core.NormalizeArgKey("Quantity") != "quantity" {
 		t.Error("expected lowercase")
