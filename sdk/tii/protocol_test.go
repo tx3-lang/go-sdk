@@ -144,6 +144,64 @@ func TestInvokeWithProfile(t *testing.T) {
 	}
 }
 
+// TestInvokeInterpretsComplexParams locks in the Protocol.Invoke path that the
+// unit tests can't reach: threading spec.Components into ParamTypeFromSchema,
+// and exposing party (Address) and environment-schema params. Asserts a real
+// complex.tii produces the expected compound kinds, incl. a component-$ref Record.
+func TestInvokeInterpretsComplexParams(t *testing.T) {
+	p, err := tii.FromFile("../testdata/complex.tii")
+	if err != nil {
+		t.Fatalf("FromFile failed: %v", err)
+	}
+
+	inv, err := p.Invoke("complex", nil)
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+	params := inv.Params()
+
+	wantKind := map[string]tii.ParamKind{
+		"quantity":  tii.KindInteger,
+		"flag":      tii.KindBoolean,
+		"nothing":   tii.KindUnit,
+		"recipient": tii.KindAddress,
+		"source":    tii.KindUtxoRef,
+		"bag":       tii.KindAnyAsset,
+		"amounts":   tii.KindList,
+		"pair":      tii.KindTuple,
+		"labels":    tii.KindMap,
+		"asset":     tii.KindRecord,
+		"side":      tii.KindVariant,
+		// Parties surface as implicit Address params (lowercased).
+		"sender":   tii.KindAddress,
+		"receiver": tii.KindAddress,
+		// Protocol-level environment schema params.
+		"fee": tii.KindInteger,
+	}
+	for name, want := range wantKind {
+		got, ok := params[name]
+		if !ok {
+			t.Errorf("missing param %q", name)
+			continue
+		}
+		if got.Kind != want {
+			t.Errorf("param %q: got kind %d, want %d", name, got.Kind, want)
+		}
+	}
+
+	// The component-$ref Record must have resolved its inner Bytes field — this
+	// is the assertion that actually guards the spec.Components threading.
+	asset := params["asset"]
+	if asset.Fields["policy"].Kind != tii.KindBytes {
+		t.Errorf("asset.policy: got kind %d, want Bytes", asset.Fields["policy"].Kind)
+	}
+
+	// The component-$ref Variant must have resolved its cases.
+	if side := params["side"]; len(side.Cases) != 2 {
+		t.Errorf("side: got %d cases, want 2", len(side.Cases))
+	}
+}
+
 func assertProtocolValid(t *testing.T, p *tii.Protocol) {
 	t.Helper()
 

@@ -81,34 +81,46 @@ func ParamTypeFromSchema(schema Schema, components map[string]Schema) ParamType 
 	case "null":
 		return ParamType{Kind: KindUnit}
 	case "array":
-		if len(schema.PrefixItems) > 0 {
-			elements := make([]ParamType, 0, len(schema.PrefixItems))
-			for _, el := range schema.PrefixItems {
-				elements = append(elements, ParamTypeFromSchema(el, components))
-			}
-			return ParamType{Kind: KindTuple, Elements: elements}
-		}
-		if schema.Items != nil {
-			inner := ParamTypeFromSchema(*schema.Items, components)
-			return ParamType{Kind: KindList, Inner: &inner}
-		}
-		return unknown(schema)
+		return arrayType(schema, components)
 	case "object":
-		if schema.AdditionalProperties != nil {
-			value := ParamTypeFromSchema(*schema.AdditionalProperties, components)
-			return ParamType{Kind: KindMap, Inner: &value}
-		}
-		if len(schema.Properties) > 0 {
-			fields := make(map[string]ParamType, len(schema.Properties))
-			for k, v := range schema.Properties {
-				fields[k] = ParamTypeFromSchema(v, components)
-			}
-			return ParamType{Kind: KindRecord, Fields: fields}
-		}
-		return unknown(schema)
+		return objectType(schema, components)
 	default:
 		return unknown(schema)
 	}
+}
+
+// arrayType interprets an "array" schema: prefixItems → Tuple, items → List,
+// neither → Unknown.
+func arrayType(schema Schema, components map[string]Schema) ParamType {
+	if len(schema.PrefixItems) > 0 {
+		elements := make([]ParamType, 0, len(schema.PrefixItems))
+		for _, el := range schema.PrefixItems {
+			elements = append(elements, ParamTypeFromSchema(el, components))
+		}
+		return ParamType{Kind: KindTuple, Elements: elements}
+	}
+	if schema.Items != nil {
+		inner := ParamTypeFromSchema(*schema.Items, components)
+		return ParamType{Kind: KindList, Inner: &inner}
+	}
+	return unknown(schema)
+}
+
+// objectType interprets an "object" schema: additionalProperties → Map,
+// properties → Record, neither → Unknown.
+func objectType(schema Schema, components map[string]Schema) ParamType {
+	if schema.AdditionalProperties != nil {
+		value := ParamTypeFromSchema(*schema.AdditionalProperties, components)
+		return ParamType{Kind: KindMap, Inner: &value}
+	}
+	if len(schema.Properties) > 0 {
+		fields := make(map[string]ParamType, len(schema.Properties))
+		for k, v := range schema.Properties {
+			fields[k] = ParamTypeFromSchema(v, components)
+		}
+		return ParamType{Kind: KindRecord, Fields: fields}
+	}
+	return unknown(schema)
 }
 
 // variantCase interprets one externally-tagged oneOf branch:

@@ -19,8 +19,6 @@ func TestErrorDiscriminationTII(t *testing.T) {
 	assertDiscriminable[*tii.InvalidJSONError](t, &tii.InvalidJSONError{Cause: fmt.Errorf("bad")})
 	assertDiscriminable[*tii.UnknownTxError](t, &tii.UnknownTxError{Name: "foo"})
 	assertDiscriminable[*tii.UnknownProfileError](t, &tii.UnknownProfileError{Name: "bar"})
-	assertDiscriminable[*tii.InvalidParamsSchemaError](t, &tii.InvalidParamsSchemaError{Detail: "bad"})
-	assertDiscriminable[*tii.InvalidParamTypeError](t, &tii.InvalidParamTypeError{Detail: "bad"})
 }
 
 func TestErrorDiscriminationTRP(t *testing.T) {
@@ -102,8 +100,6 @@ func TestTiiErrorMarker(t *testing.T) {
 	var _ tii.TiiError = &tii.InvalidJSONError{}
 	var _ tii.TiiError = &tii.UnknownTxError{}
 	var _ tii.TiiError = &tii.UnknownProfileError{}
-	var _ tii.TiiError = &tii.InvalidParamsSchemaError{}
-	var _ tii.TiiError = &tii.InvalidParamTypeError{}
 }
 
 // TestTrpErrorMarker verifies TRP errors implement TrpError interface.
