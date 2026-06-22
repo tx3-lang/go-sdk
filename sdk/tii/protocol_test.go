@@ -1,8 +1,10 @@
 package tii_test
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/tx3-lang/go-sdk/sdk/tii"
@@ -192,14 +194,77 @@ func TestInvokeInterpretsComplexParams(t *testing.T) {
 	// The component-$ref Record must have resolved its inner Bytes field — this
 	// is the assertion that actually guards the spec.Components threading.
 	asset := params["asset"]
-	if asset.Fields["policy"].Kind != tii.KindBytes {
-		t.Errorf("asset.policy: got kind %d, want Bytes", asset.Fields["policy"].Kind)
+	if asset.Field("policy").Kind != tii.KindBytes {
+		t.Errorf("asset.policy: got kind %d, want Bytes", asset.Field("policy").Kind)
 	}
 
 	// The component-$ref Variant must have resolved its cases.
 	if side := params["side"]; len(side.Cases) != 2 {
 		t.Errorf("side: got %d cases, want 2", len(side.Cases))
 	}
+}
+
+// TestInvokeEncodesComplexArgIntoWireForm exercises the exact path cshell /
+// trix invoke take (SetArgs → IntoResolveRequest), on the real 05-invoke TII.
+// The complex `meta` record must serialize to the tagged TaggedArg; scalar args
+// must stay bare for the resolver to coerce by flat type.
+func TestInvokeEncodesComplexArgIntoWireForm(t *testing.T) {
+	p, err := tii.FromFile("../testdata/invoke.tii")
+	if err != nil {
+		t.Fatalf("FromFile failed: %v", err)
+	}
+
+	inv, err := p.Invoke("transfer", nil)
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+	inv.SetArgs(map[string]interface{}{
+		"sender":   "addr_test1vqx",
+		"receiver": "addr_test1vqyy",
+		"quantity": 2_000_000,
+		"urgent":   true,
+		"memo":     "deadbeef",
+		"meta":     map[string]interface{}{"tags": []interface{}{1, 2, 3}, "level": 7},
+	})
+
+	_, args, err := inv.IntoResolveRequest()
+	if err != nil {
+		t.Fatalf("IntoResolveRequest failed: %v", err)
+	}
+
+	// The complex record nests a parametric List<Int>; fields are positional in
+	// declared order (tags, level) — required order, not alphabetical.
+	wantMeta := `{"struct":{"constructor":0,"fields":[{"list":[{"int":1},{"int":2},{"int":3}]},{"int":7}]}}`
+	gotMeta, _ := json.Marshal(args["meta"])
+	if normJSON(t, string(gotMeta)) != normJSON(t, wantMeta) {
+		t.Errorf("meta wire mismatch:\n got: %s\nwant: %s", gotMeta, wantMeta)
+	}
+
+	// Scalars stay bare (back-compat; resolver coerces via the flat type).
+	if !reflect.DeepEqual(args["quantity"], 2_000_000) {
+		t.Errorf("quantity: got %#v, want bare 2000000", args["quantity"])
+	}
+	if !reflect.DeepEqual(args["urgent"], true) {
+		t.Errorf("urgent: got %#v, want bare true", args["urgent"])
+	}
+	if !reflect.DeepEqual(args["memo"], "deadbeef") {
+		t.Errorf("memo: got %#v, want bare \"deadbeef\"", args["memo"])
+	}
+}
+
+// normJSON canonicalizes a JSON string by round-tripping through a generic tree,
+// so two equivalent encodings compare equal regardless of map key ordering.
+func normJSON(t *testing.T, s string) string {
+	t.Helper()
+	var v interface{}
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		t.Fatalf("normJSON parse %q: %v", s, err)
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("normJSON marshal: %v", err)
+	}
+	return string(out)
 }
 
 func assertProtocolValid(t *testing.T, p *tii.Protocol) {

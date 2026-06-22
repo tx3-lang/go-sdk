@@ -27,11 +27,35 @@ const (
 // Variant in Cases. Unknown carries the raw Schema.
 type ParamType struct {
 	Kind     ParamKind
-	Inner    *ParamType           // List element / Map value
-	Elements []ParamType          // Tuple positional types
-	Fields   map[string]ParamType // Record field name → type
-	Cases    []VariantCase        // Variant cases
-	Schema   *Schema              // Unknown fallback (raw schema)
+	Inner    *ParamType    // List element / Map value
+	Elements []ParamType   // Tuple positional types
+	Fields   []RecordField // Record fields, in declared (required) order
+	Cases    []VariantCase // Variant cases
+	Schema   *Schema       // Unknown fallback (raw schema)
+}
+
+// RecordField is one field of a KindRecord param. Fields are stored in
+// declared order — the schema's `required` array, which `tx3c` emits in
+// source-declaration order. (`properties` is alphabetized by JSON and must not
+// drive field order; the type-directed encoder relies on this order to build
+// the positional `struct` wire form.)
+type RecordField struct {
+	Name string
+	Type ParamType
+}
+
+// Field looks up a record field's type by name (case-sensitive). Returns nil
+// for non-record kinds or unknown field names.
+func (p ParamType) Field(name string) *ParamType {
+	if p.Kind != KindRecord {
+		return nil
+	}
+	for i := range p.Fields {
+		if p.Fields[i].Name == name {
+			return &p.Fields[i].Type
+		}
+	}
+	return nil
 }
 
 // VariantCase is one case of a KindVariant param.
@@ -113,14 +137,38 @@ func objectType(schema Schema, components map[string]Schema) ParamType {
 		value := ParamTypeFromSchema(*schema.AdditionalProperties, components)
 		return ParamType{Kind: KindMap, Inner: &value}
 	}
-	if len(schema.Properties) > 0 {
-		fields := make(map[string]ParamType, len(schema.Properties))
-		for k, v := range schema.Properties {
-			fields[k] = ParamTypeFromSchema(v, components)
-		}
-		return ParamType{Kind: KindRecord, Fields: fields}
+	// A present `properties` key (even empty `{}`) denotes a record; only its
+	// absence falls through to Unknown. Mirrors the reference SDK's key-presence
+	// check so an empty-record variant case (e.g. a payload-less `Buy`) maps to
+	// an empty Record rather than Unknown.
+	if schema.Properties != nil {
+		return ParamType{Kind: KindRecord, Fields: recordFields(schema, components)}
 	}
 	return unknown(schema)
+}
+
+// recordFields builds record fields in declared order: the schema's `required`
+// array first (the order `tx3c` emits, = source declaration), then any
+// remaining `properties` (which JSON alphabetizes). The encoder needs this
+// order to produce positional `struct` fields.
+func recordFields(schema Schema, components map[string]Schema) []RecordField {
+	fields := make([]RecordField, 0, len(schema.Properties))
+	seen := make(map[string]bool, len(schema.Properties))
+
+	for _, name := range schema.Required {
+		if fieldSchema, ok := schema.Properties[name]; ok {
+			fields = append(fields, RecordField{Name: name, Type: ParamTypeFromSchema(fieldSchema, components)})
+			seen[name] = true
+		}
+	}
+
+	for name, fieldSchema := range schema.Properties {
+		if !seen[name] {
+			fields = append(fields, RecordField{Name: name, Type: ParamTypeFromSchema(fieldSchema, components)})
+		}
+	}
+
+	return fields
 }
 
 // variantCase interprets one externally-tagged oneOf branch:

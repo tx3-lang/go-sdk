@@ -87,7 +87,7 @@ func TestParamRecord(t *testing.T) {
 	if pt.Kind != KindRecord {
 		t.Fatalf("expected record, got %+v", pt)
 	}
-	if pt.Fields["price"].Kind != KindInteger || pt.Fields["live"].Kind != KindBoolean {
+	if pt.Field("price").Kind != KindInteger || pt.Field("live").Kind != KindBoolean {
 		t.Fatalf("unexpected record fields: %+v", pt.Fields)
 	}
 }
@@ -103,7 +103,7 @@ func TestParamVariant(t *testing.T) {
 	if pt.Cases[0].Tag != "Buy" || pt.Cases[1].Tag != "Sell" {
 		t.Fatalf("unexpected variant tags: %q, %q", pt.Cases[0].Tag, pt.Cases[1].Tag)
 	}
-	if pt.Cases[1].Fields.Kind != KindRecord || pt.Cases[1].Fields.Fields["price"].Kind != KindInteger {
+	if pt.Cases[1].Fields.Kind != KindRecord || pt.Cases[1].Fields.Field("price").Kind != KindInteger {
 		t.Fatalf("unexpected Sell fields: %+v", pt.Cases[1].Fields)
 	}
 }
@@ -113,7 +113,7 @@ func TestParamComponentRefResolves(t *testing.T) {
 		"AssetClass": parse(t, `{"type":"object","properties":{"policy":{"$ref":"https://tx3.land/specs/v1beta0/tii#/$defs/Bytes"}},"required":["policy"]}`),
 	}
 	pt := ParamTypeFromSchema(Schema{Ref: "#/components/schemas/AssetClass"}, components)
-	if pt.Kind != KindRecord || pt.Fields["policy"].Kind != KindBytes {
+	if pt.Kind != KindRecord || pt.Field("policy").Kind != KindBytes {
 		t.Fatalf("expected record(policy:bytes), got %+v", pt)
 	}
 	// Missing component → Unknown, never errors.
