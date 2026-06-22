@@ -10,9 +10,9 @@ import (
 // its TIR, expected parameters, and the arguments collected so far.
 type Invocation struct {
 	tir      core.TirEnvelope
-	params   map[string]ParamType    // declared param name → type
-	required map[string]bool         // set of required param names
-	args     map[string]interface{}  // collected args (original case keys)
+	params   map[string]ParamType   // declared param name → type
+	required map[string]bool        // set of required param names
+	args     map[string]interface{} // collected args (original case keys)
 }
 
 // Params returns the declared parameters and their types.
@@ -59,6 +59,13 @@ func (inv *Invocation) WithArgs(args map[string]interface{}) *Invocation {
 
 // IntoResolveRequest converts the invocation into TRP ResolveParams.
 // Returns the TIR envelope and the collected argument map.
+//
+// Each arg is marshalled type-directed by its .tii ParamType: top-level scalars
+// come back bare (the resolver coerces them via the flat TIR type), aggregates
+// (record/list/tuple/map/variant) come back as the self-describing TaggedArg
+// wire form. An unmapped arg has no type, so it passes through untouched. Arg
+// keys are lowercased on set; params keep their original case, so match
+// case-insensitively.
 func (inv *Invocation) IntoResolveRequest() (core.TirEnvelope, core.ArgMap, error) {
 	// Check for missing required params
 	missing := inv.UnspecifiedParams()
@@ -66,7 +73,31 @@ func (inv *Invocation) IntoResolveRequest() (core.TirEnvelope, core.ArgMap, erro
 		return core.TirEnvelope{}, nil, &MissingParamsError{Params: missing}
 	}
 
-	return inv.tir, inv.args, nil
+	args := make(core.ArgMap, len(inv.args))
+	for key, value := range inv.args {
+		if param, ok := inv.findParam(key); ok {
+			encoded, err := Encode(param, value)
+			if err != nil {
+				return core.TirEnvelope{}, nil, err
+			}
+			args[key] = encoded
+		} else {
+			args[key] = value
+		}
+	}
+
+	return inv.tir, args, nil
+}
+
+// findParam looks up a parameter type by name, case-insensitively. Arg keys are
+// lowercased on set, while declared params keep their original case.
+func (inv *Invocation) findParam(key string) (ParamType, bool) {
+	for name, ty := range inv.params {
+		if strings.EqualFold(name, key) {
+			return ty, true
+		}
+	}
+	return ParamType{}, false
 }
 
 // MissingParamsError is returned when required params are not set.
