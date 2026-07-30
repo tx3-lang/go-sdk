@@ -194,3 +194,123 @@ func TestNestedScalarIsTagged(t *testing.T) {
 		t.Errorf("nested int: got %s, want tagged {\"list\":[{\"int\":5}]}", gotJSON)
 	}
 }
+
+const bytesSchema = `{"$ref":"https://tx3.land/specs/v1beta0/tii#/$defs/Bytes"}`
+const listOfBytesSchema = `{"type":"array","items":{"$ref":"https://tx3.land/specs/v1beta0/tii#/$defs/Bytes"}}`
+
+// TestNativeByteArraysCanonicalizeToHex verifies that a native byte array
+// (`[]byte`, or an integer array — the JSON shape other SDKs' native byte
+// arrays serialize to) canonicalizes to 0x-prefixed hex, per SDK spec §3.9
+// (regression: TRP `(-32005) value is not bytes: [1,1]`).
+func TestNativeByteArraysCanonicalizeToHex(t *testing.T) {
+	bytesParam := ParamTypeFromSchema(parse(t, bytesSchema), nil)
+
+	got, err := Encode(bytesParam, []byte{1, 1})
+	if err != nil {
+		t.Fatalf("encode []byte failed: %v", err)
+	}
+	if !jsonEqual(t, got, "0x0101") {
+		t.Errorf("[]byte: got %#v, want \"0x0101\"", got)
+	}
+
+	got, err = Encode(bytesParam, []interface{}{float64(1), float64(1)})
+	if err != nil {
+		t.Fatalf("encode integer array failed: %v", err)
+	}
+	if !jsonEqual(t, got, "0x0101") {
+		t.Errorf("integer array: got %#v, want \"0x0101\"", got)
+	}
+
+	listParam := ParamTypeFromSchema(parse(t, listOfBytesSchema), nil)
+	got, err = Encode(listParam, []interface{}{[]byte{1, 2}})
+	if err != nil {
+		t.Fatalf("encode list of []byte failed: %v", err)
+	}
+	want := map[string]interface{}{"list": []interface{}{
+		map[string]interface{}{"bytes": "0x0102"},
+	}}
+	if !jsonEqual(t, got, want) {
+		gotJSON, _ := json.Marshal(got)
+		t.Errorf("nested []byte: got %s, want {\"list\":[{\"bytes\":\"0x0102\"}]}", gotJSON)
+	}
+}
+
+// TestRejectsNonByteArraysForBytes pins the reject pass for byte params.
+func TestRejectsNonByteArraysForBytes(t *testing.T) {
+	bytesParam := ParamTypeFromSchema(parse(t, bytesSchema), nil)
+	for _, bad := range []interface{}{
+		[]interface{}{float64(1), float64(256)},
+		[]interface{}{float64(1), float64(-1)},
+		[]interface{}{"aa", float64(1)},
+		[]interface{}{true},
+		true,
+	} {
+		if _, err := Encode(bytesParam, bad); err == nil {
+			t.Errorf("value %#v should have been rejected", bad)
+		}
+	}
+}
+
+// TestHydraInitArgShapes covers the Hydra `init` argument shapes:
+// `participants` / `parties` are `List<Bytes>`, `head_id` is `Bytes`
+// (regression: `(-32005) target type not supported: List` /
+// `value is not bytes: [1,2]`).
+func TestHydraInitArgShapes(t *testing.T) {
+	listParam := ParamTypeFromSchema(parse(t, listOfBytesSchema), nil)
+
+	got, err := Encode(listParam, []interface{}{"0102", "0304"})
+	if err != nil {
+		t.Fatalf("encode hex strings failed: %v", err)
+	}
+	want := map[string]interface{}{"list": []interface{}{
+		map[string]interface{}{"bytes": "0102"},
+		map[string]interface{}{"bytes": "0304"},
+	}}
+	if !jsonEqual(t, got, want) {
+		gotJSON, _ := json.Marshal(got)
+		t.Errorf("participants (hex): got %s, want tagged list of bytes", gotJSON)
+	}
+
+	got, err = Encode(listParam, []interface{}{[]byte{1, 2}})
+	if err != nil {
+		t.Fatalf("encode native byte arrays failed: %v", err)
+	}
+	want = map[string]interface{}{"list": []interface{}{
+		map[string]interface{}{"bytes": "0x0102"},
+	}}
+	if !jsonEqual(t, got, want) {
+		gotJSON, _ := json.Marshal(got)
+		t.Errorf("participants (native): got %s, want tagged list of bytes", gotJSON)
+	}
+
+	bytesParam := ParamTypeFromSchema(parse(t, bytesSchema), nil)
+	got, err = Encode(bytesParam, "abcd0123")
+	if err != nil {
+		t.Fatalf("encode head_id failed: %v", err)
+	}
+	if !jsonEqual(t, got, "abcd0123") {
+		t.Errorf("head_id: got %#v, want bare \"abcd0123\"", got)
+	}
+}
+
+// TestAsteriaNameArgShapes covers the Asteria `create_ship` `ship_name` /
+// `pilot_name` `Bytes` params (regression: `(-32005) value is not bytes: [1,1]`).
+func TestAsteriaNameArgShapes(t *testing.T) {
+	bytesParam := ParamTypeFromSchema(parse(t, bytesSchema), nil)
+
+	got, err := Encode(bytesParam, "53484950313233")
+	if err != nil {
+		t.Fatalf("encode hex name failed: %v", err)
+	}
+	if !jsonEqual(t, got, "53484950313233") {
+		t.Errorf("hex name: got %#v, want bare passthrough", got)
+	}
+
+	got, err = Encode(bytesParam, []byte("SHIP"))
+	if err != nil {
+		t.Fatalf("encode native name failed: %v", err)
+	}
+	if !jsonEqual(t, got, "0x53484950") {
+		t.Errorf("native name: got %#v, want \"0x53484950\"", got)
+	}
+}
