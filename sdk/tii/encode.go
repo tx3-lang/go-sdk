@@ -1,6 +1,7 @@
 package tii
 
 import (
+	"encoding/hex"
 	"fmt"
 	"sort"
 )
@@ -95,9 +96,14 @@ func marshal(param ParamType, value interface{}, nested bool) (interface{}, erro
 		switch value.(type) {
 		case string, map[string]interface{}:
 			return leaf("bytes", value, nested), nil
-		default:
-			return nil, wrongShape("bytes", "hex string or bytes envelope", value)
 		}
+		// A native byte array (`[]byte`, or an integer array — the JSON shape
+		// other SDKs' native byte arrays serialize to) canonicalizes to
+		// 0x-prefixed hex, the wire form the resolver coerces (SDK spec §3.9).
+		if raw, ok := asByteArray(value); ok {
+			return leaf("bytes", "0x"+hex.EncodeToString(raw), nested), nil
+		}
+		return nil, wrongShape("bytes", "hex string, bytes envelope, or byte array", value)
 	case KindAddress:
 		switch value.(type) {
 		case string:
@@ -190,6 +196,47 @@ func marshal(param ParamType, value interface{}, nested bool) (interface{}, erro
 	default: // KindUtxo, KindAnyAsset, KindUnknown
 		return value, nil
 	}
+}
+
+// asByteArray interprets a value as a raw byte array: a `[]byte`, or an array
+// whose every element is an integer in 0..=255. The second return is false if
+// it is neither.
+func asByteArray(value interface{}) ([]byte, bool) {
+	switch v := value.(type) {
+	case []byte:
+		return v, true
+	case []interface{}:
+		out := make([]byte, len(v))
+		for i, item := range v {
+			b, ok := asByteValue(item)
+			if !ok {
+				return nil, false
+			}
+			out[i] = b
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+// asByteValue interprets one array element as a byte (an integer in 0..=255).
+func asByteValue(item interface{}) (byte, bool) {
+	switch n := item.(type) {
+	case float64:
+		if n == float64(int64(n)) && n >= 0 && n <= 255 {
+			return byte(n), true
+		}
+	case int:
+		if n >= 0 && n <= 255 {
+			return byte(n), true
+		}
+	case int64:
+		if n >= 0 && n <= 255 {
+			return byte(n), true
+		}
+	}
+	return 0, false
 }
 
 // leaf renders a scalar leaf: bare at the top level (the resolver knows the
