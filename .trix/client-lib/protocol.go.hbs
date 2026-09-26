@@ -45,18 +45,10 @@ var _{{constantCase @key}}_PROFILE = func() facade.Profile {
 {{/each}}
 
 {{/if}}
-{{#if tii.components.schemas}}
-// Named types for the protocol's custom (record / variant) types.
-{{{componentTypes tii.components.schemas "go"}}}
-{{/if}}
+// Named types for the protocol's custom (record / variant) types and the
+// arguments of each transaction, declared by the renderer.
+{{{declarations tii "go"~}}}
 {{#each tii.transactions}}
-// {{pascalCase @key}}Params holds the arguments for the {{@key}} transaction.
-type {{pascalCase @key}}Params struct {
-{{#each params.properties}}
-	{{pascalCase @key}} {{schemaTypeFor this "go"}} `json:"{{@key}}"`
-{{/each}}
-}
-
 // {{constantCase @key}}_TIR is the embedded TIR envelope for the {{@key}} transaction.
 var {{constantCase @key}}_TIR = core.TirEnvelope{
 	Content:  "{{tir.content}}",
@@ -119,7 +111,7 @@ func (c *Client) With{{pascalCase @key}}(party facade.Party) *Client {
 {{#each tii.transactions}}
 // {{pascalCase @key}} builds the {{@key}} transaction. Drive the returned builder with
 // .Resolve(ctx) and the rest of the lifecycle chain.
-func (c *Client) {{pascalCase @key}}(args {{pascalCase @key}}Params) *facade.TxBuilder {
+func (c *Client) {{pascalCase @key}}(args {{paramsTypeName @key "go"}}) *facade.TxBuilder {
 	b, err := c.inner.Tx("{{@key}}")
 	if err != nil {
 		// Codegen invariant: the embedded "{{@key}}" TIR is always declared.
@@ -127,7 +119,7 @@ func (c *Client) {{pascalCase @key}}(args {{pascalCase @key}}Params) *facade.TxB
 	}
 	return b.Args(map[string]interface{}{
 {{#each params.properties}}
-		"{{@key}}": args.{{pascalCase @key}},
+		"{{@key}}": args.{{identifier @key "go" "param"}},
 {{/each}}
 	})
 }
