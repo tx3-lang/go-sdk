@@ -2,12 +2,12 @@
 #
 # CI artifact — not part of the SDK.
 #
-# Renders the .trix/client-lib codegen plugin against the shared transfer
+# Renders tx3c's built-in `go-client` template against the shared transfer
 # fixture and verifies the result the way a consumer would: the rendered module
 # resolves the published go-sdk at the version its generated go.mod pins — no
 # replace directives.
 #
-# Requires `tx3c` and `go` on PATH.
+# Requires `tx3c` (0.24.0 or later, which ships the built-in templates) and `go` on PATH.
 # Last verified against fleet v0.12.0 (unified Tx3ClientBuilder).
 set -euo pipefail
 
@@ -17,7 +17,7 @@ trap 'rm -rf "$gen"' EXIT
 
 tx3c codegen \
   --tii "$repo_root/sdk/testdata/transfer.tii" \
-  --template "$repo_root/.trix/client-lib" \
+  --template go-client \
   --output "$gen"
 
 for f in protocol.go go.mod; do
